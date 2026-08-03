@@ -1,0 +1,75 @@
+{
+  "name": "zotero-paper-ai",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "AI colleague for Zotero: translate, explain, chat with CLI OAuth (Codex/Grok) or API key",
+  "config": {
+    "addonName": "Paper AI Colleague",
+    "addonID": "paper-ai@mqjinwon.github.io",
+    "addonRef": "paperai",
+    "addonInstance": "PaperAI",
+    "prefsPrefix": "extensions.zotero.paperai"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mqjinwon/zotero-paper-ai.git"
+  },
+  "author": "mqjinwon",
+  "bugs": {
+    "url": "https://github.com/mqjinwon/zotero-paper-ai/issues"
+  },
+  "homepage": "https://github.com/mqjinwon/zotero-paper-ai#readme",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "start": "zotero-plugin serve",
+    "build": "zotero-plugin build && tsc --noEmit",
+    "lint:check": "prettier --check . && eslint .",
+    "lint:fix": "prettier --write . && eslint . --fix",
+    "release": "zotero-plugin release",
+    "test": "zotero-plugin test",
+    "test:auth": "tsx --test test/node/auth.test.ts",
+    "test:llm": "tsx --test test/node/llm.test.ts test/node/phase2.test.ts",
+    "test:phase2": "tsx --test test/node/phase2.test.ts",
+    "test:rag": "tsx --test test/node/rag.test.ts",
+    "test:panel": "tsx --test test/node/panelDom.test.ts",
+    "test:node": "tsx --test test/node/*.test.ts",
+    "deploy:local": "bash scripts/deploy-local.sh",
+    "smoke:auth": "tsx scripts/smoke-auth.ts",
+    "update-deps": "npm update --save"
+  },
+  "dependencies": {
+    "katex": "^0.16.22",
+    "marked": "^15.0.12",
+    "zotero-plugin-toolkit": "^5.1.0-beta.13"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.10.0",
+    "@zotero-plugin/eslint-config": "^0.6.7",
+    "chai": "^6.2.1",
+    "eslint": "^9.39.2",
+    "linkedom": "^0.18.11",
+    "mocha": "^11.7.5",
+    "prettier": "^3.7.4",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.3",
+    "zotero-plugin-scaffold": "^0.8.2",
+    "zotero-types": "^4.1.0-beta.4"
+  },
+  "prettier": {
+    "printWidth": 80,
+    "tabWidth": 2,
+    "endOfLine": "lf",
+    "overrides": [
+      {
+        "files": [
+          "*.xhtml"
+        ],
+        "options": {
+          "htmlWhitespaceSensitivity": "css"
+        }
+      }
+    ]
+  }
+}

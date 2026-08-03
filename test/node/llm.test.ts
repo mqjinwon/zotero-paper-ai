@@ -1,0 +1,88 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { normalizeMathDelimiters, renderMarkdown } from "../../src/ui/markdown.ts";
+import { buildSystemPrompt, buildUserPayload } from "../../src/llm/prompts.ts";
+import { runTask } from "../../src/llm/router.ts";
+import type { LLMClient } from "../../src/llm/types.ts";
+import { consumeOpenAIChatSSE } from "../../src/llm/grokClient.ts";
+
+describe("prompts", () => {
+  it("asks for LaTeX math preservation", () => {
+    const s = buildSystemPrompt("explain", "ko");
+    assert.match(s, /\$inline\$|\$\$display\$\$|LaTeX/);
+  });
+
+  it("figure mode keeps math instructions", () => {
+    for (const mode of ["figure-explain"] as const) {
+      const s = buildSystemPrompt(mode, "ko");
+      assert.match(s, /LaTeX|\$/);
+    }
+  });
+
+  it("builds user payload with selection (explain path)", () => {
+    const u = buildUserPayload({
+      mode: "explain",
+      selection: "Hello world",
+      paperTitle: "Test Paper",
+    });
+    assert.match(u, /Hello world/);
+    assert.match(u, /Test Paper/);
+    assert.match(u, /explain/i);
+  });
+
+  it("explain prompt is paper-grounded and structured", () => {
+    const s = buildSystemPrompt("explain", "ko");
+    assert.match(s, /co-reader|research/i);
+    assert.match(s, /assumption|evidence|RAG|\[§/i);
+  });
+
+  it("runTask rejects translate (fastTranslate only)", async () => {
+    const client: LLMClient = {
+      id: "grok",
+      complete: async () => {
+        throw new Error("should not be called");
+      },
+    };
+    await assert.rejects(
+      () =>
+        runTask(client, {
+          mode: "translate",
+          targetLang: "ko",
+          selection: "hi",
+        }),
+      /fastTranslate/,
+    );
+  });
+});
+
+describe("markdown math", () => {
+  it("normalizes \\( \\) delimiters", () => {
+    const n = normalizeMathDelimiters("see \\(x^2\\) here");
+    assert.equal(n.includes("$x^2$"), true);
+  });
+
+  it("renders display math with KaTeX", () => {
+    const html = renderMarkdown("Energy: $$E=mc^2$$");
+    assert.match(html, /katex/);
+  });
+});
+
+describe("SSE consumer", () => {
+  it("parses OpenAI chat stream chunks", async () => {
+    const payload =
+      'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n' +
+      'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n' +
+      "data: [DONE]\n\n";
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(payload));
+        controller.close();
+      },
+    });
+    const resp = new Response(stream, {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+    const text = await consumeOpenAIChatSSE(resp);
+    assert.equal(text, "Hello");
+  });
+});

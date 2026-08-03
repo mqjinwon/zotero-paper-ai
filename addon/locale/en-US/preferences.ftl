@@ -1,0 +1,13 @@
+pref-title = Paper AI Colleague
+pref-provider = Provider
+pref-model = Model (optional)
+pref-targetLang = Target language
+pref-autoTranslate =
+    .label = Auto-translate when selecting text in PDF
+pref-autoTranslateMinChars = Min selection length for auto-translate
+pref-grokApiKey = Grok API key (optional fallback)
+pref-grokBaseUrl = Grok base URL
+pref-grokAuthPath = Grok auth.json path
+pref-codexAuthPath = Codex auth.json path
+pref-test = Test connection (provider)
+pref-help = { $name } Build { $version } { $time }. Auth: run `codex login` / `grok login`, or set Grok API key. PDF: drag text in the reader for translate buttons; open Paper AI in the right sidebar. RAG defaults to key-free BM25; optional Embeddings API is separate from chat OAuth.

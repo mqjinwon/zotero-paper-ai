@@ -1,0 +1,25 @@
+# dot files
+.DS_Store
+
+# Node.js
+node_modules
+pnpm-lock.yaml
+yarn.lock
+
+# TSC
+tsconfig.tsbuildinfo
+
+# Scaffold
+.env
+.scaffold
+build
+logs
+
+# Built plugins / local secrets (never commit)
+*.xpi
+*.pem
+*.key
+auth.json
+.secrets/
+.env.*
+!.env.example

@@ -1,0 +1,369 @@
+<linkset>
+  <html:link rel="localization" href="__addonRef__-preferences.ftl" />
+</linkset>
+<groupbox
+  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
+>
+  <label><html:h2>Paper AI Colleague</html:h2></label>
+
+  <label><html:h3>Global (fallback)</html:h3></label>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-provider">Default provider</html:label>
+    <!-- Zotero prefs pane: use XUL menulist (html:select often appears disabled) -->
+    <menulist
+      id="zotero-prefpane-__addonRef__-provider"
+      preference="provider"
+      native="true"
+    >
+      <menupopup>
+        <menuitem value="grok" label="Grok (CLI OAuth / API key)"/>
+        <menuitem value="openai-codex" label="OpenAI Codex (CLI OAuth)"/>
+      </menupopup>
+    </menulist>
+  </hbox>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-model">Default model (fallback)</html:label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-model"
+      preference="model"
+      placeholder="grok-4.5"
+    />
+  </hbox>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-reasoningEffort">Default reasoning (Grok)</html:label>
+    <menulist
+      id="zotero-prefpane-__addonRef__-reasoningEffort"
+      preference="reasoningEffort"
+      native="true"
+      tooltiptext="none = fastest when supported; grok-4.5 coerces none→low"
+    >
+      <menupopup>
+        <menuitem value="none" label="none (fastest if model allows)"/>
+        <menuitem value="low" label="low"/>
+        <menuitem value="medium" label="medium"/>
+        <menuitem value="high" label="high (slowest / deepest)"/>
+      </menupopup>
+    </menulist>
+  </hbox>
+  <html:p style="margin:0 0 6px; color:#555; font-size:11px;">
+    Reasoning applies to Grok only. <html:b>grok-4.5</html:b> cannot use none → sent as low.
+    Per-feature empty = this global default.
+  </html:p>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-targetLang">Target language</html:label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-targetLang"
+      preference="targetLang"
+    />
+  </hbox>
+
+  <checkbox
+    id="zotero-prefpane-__addonRef__-autoTranslateOnSelect"
+    preference="autoTranslateOnSelect"
+    label="Auto-translate when selecting text in PDF"
+  />
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-autoTranslateMinChars">Min chars (auto-translate)</html:label>
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-autoTranslateMinChars"
+      preference="autoTranslateMinChars"
+      min="1"
+    />
+  </hbox>
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-translateResultW">Translate box width (px)</html:label>
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-translateResultW"
+      preference="translateResultW"
+      min="240"
+      max="720"
+      style="width:72px"
+    />
+    <html:label for="zotero-prefpane-__addonRef__-translateResultH">height (px)</html:label>
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-translateResultH"
+      preference="translateResultH"
+      min="80"
+      max="420"
+      style="width:72px"
+    />
+  </hbox>
+  <html:p style="margin:0 0 6px; color:#555; font-size:11px;">
+    Selection popup: drag corner to resize width &amp; height (remembered). Drag text or use 복사.
+  </html:p>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-grokApiKey">Grok API key (optional)</html:label>
+    <html:input
+      type="password"
+      id="zotero-prefpane-__addonRef__-grokApiKey"
+      preference="grokApiKey"
+    />
+  </hbox>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-grokBaseUrl">Default base URL</html:label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-grokBaseUrl"
+      preference="grokBaseUrl"
+    />
+  </hbox>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-grokAuthPath">Grok auth.json path</html:label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-grokAuthPath"
+      preference="grokAuthPath"
+      placeholder="empty = ~/.grok/auth.json"
+    />
+  </hbox>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-codexAuthPath">Codex auth.json path</html:label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-codexAuthPath"
+      preference="codexAuthPath"
+      placeholder="empty = ~/.codex/auth.json"
+    />
+  </hbox>
+
+  <label><html:h3>Per-feature model / endpoint / reasoning</html:h3></label>
+  <html:p style="margin:0 0 6px; color:#555; font-size:11px;">
+    Provider/Base URL empty = global. Model empty = global then grok-4.5.
+    Reasoning empty = global Default reasoning.
+  </html:p>
+
+  <!-- Translate -->
+  <label><html:b>Translate</html:b></label>
+  <hbox align="center">
+    <html:label>Provider</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-translateProvider" preference="translateProvider" native="true">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="grok" label="Grok"/>
+        <menuitem value="openai-codex" label="Codex"/>
+      </menupopup>
+    </menulist>
+    <html:label>Model</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-translateModel" preference="translateModel" placeholder="grok-4.5" style="min-width:120px"/>
+    <html:label>Reasoning</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-translateReasoning" preference="translateReasoning" native="true" tooltiptext="default low for speed">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="none" label="none"/>
+        <menuitem value="low" label="low"/>
+        <menuitem value="medium" label="medium"/>
+        <menuitem value="high" label="high"/>
+      </menupopup>
+    </menulist>
+    <html:label>Base URL</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-translateBaseUrl" preference="translateBaseUrl" placeholder="(global)" style="min-width:140px"/>
+  </hbox>
+
+  <!-- Explain -->
+  <label><html:b>Explain (selection)</html:b></label>
+  <hbox align="center">
+    <html:label>Provider</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-explainProvider" preference="explainProvider" native="true">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="grok" label="Grok"/>
+        <menuitem value="openai-codex" label="Codex"/>
+      </menupopup>
+    </menulist>
+    <html:label>Model</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-explainModel" preference="explainModel" placeholder="grok-4.5" style="min-width:120px"/>
+    <html:label>Reasoning</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-explainReasoning" preference="explainReasoning" native="true">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="none" label="none"/>
+        <menuitem value="low" label="low"/>
+        <menuitem value="medium" label="medium"/>
+        <menuitem value="high" label="high"/>
+      </menupopup>
+    </menulist>
+    <html:label>Base URL</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-explainBaseUrl" preference="explainBaseUrl" placeholder="(global)" style="min-width:140px"/>
+  </hbox>
+
+  <!-- Chat -->
+  <label><html:b>Chat / Q&amp;A</html:b></label>
+  <hbox align="center">
+    <html:label>Provider</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-chatProvider" preference="chatProvider" native="true">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="grok" label="Grok"/>
+        <menuitem value="openai-codex" label="Codex"/>
+      </menupopup>
+    </menulist>
+    <html:label>Model</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-chatModel" preference="chatModel" placeholder="grok-4.5" style="min-width:120px"/>
+    <html:label>Reasoning</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-chatReasoning" preference="chatReasoning" native="true">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="none" label="none"/>
+        <menuitem value="low" label="low"/>
+        <menuitem value="medium" label="medium"/>
+        <menuitem value="high" label="high"/>
+      </menupopup>
+    </menulist>
+    <html:label>Base URL</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-chatBaseUrl" preference="chatBaseUrl" placeholder="(global)" style="min-width:140px"/>
+  </hbox>
+
+  <!-- Figure -->
+  <label><html:b>Figure (vision)</html:b></label>
+  <hbox align="center">
+    <html:label>Provider</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-figureProvider" preference="figureProvider" native="true">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="grok" label="Grok"/>
+        <menuitem value="openai-codex" label="Codex (no vision)"/>
+      </menupopup>
+    </menulist>
+    <html:label>Model</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-figureModel" preference="figureModel" placeholder="grok-4.5" style="min-width:120px"/>
+    <html:label>Reasoning</html:label>
+    <menulist id="zotero-prefpane-__addonRef__-figureReasoning" preference="figureReasoning" native="true">
+      <menupopup>
+        <menuitem value="" label="(global)"/>
+        <menuitem value="none" label="none"/>
+        <menuitem value="low" label="low"/>
+        <menuitem value="medium" label="medium"/>
+        <menuitem value="high" label="high"/>
+      </menupopup>
+    </menulist>
+    <html:label>Base URL</html:label>
+    <html:input type="text" id="zotero-prefpane-__addonRef__-figureBaseUrl" preference="figureBaseUrl" placeholder="(global)" style="min-width:140px"/>
+  </hbox>
+
+  <hbox align="center" style="margin-top:8px;">
+    <html:button id="__addonRef__-test-connection" type="button">
+      Test translate endpoint
+    </html:button>
+    <html:button id="__addonRef__-test-chat" type="button" style="margin-left:6px;">
+      Test chat endpoint
+    </html:button>
+    <html:span id="__addonRef__-test-status" style="margin-left:8px;"></html:span>
+  </hbox>
+  <html:p style="margin:6px 0 0; color:#444; font-size:11px;">
+    PDF: drag text → Translate/Explain rows; panel Q&amp;A → Chat; figure explain → Figure row.
+  </html:p>
+
+  <label><html:h3>논문 검색 (RAG)</html:h3></label>
+  <html:p style="margin:0 0 8px; color:#444; font-size:11px; line-height:1.45;">
+    논문 검색(RAG): 기본은 <html:b>키 없이 동작(BM25)</html:b>.
+    의미 검색을 쓰려면 Embeddings API(OpenAI 호환) 키를 넣으세요.
+    Chat용 Grok/Codex 로그인과는 별개입니다.
+  </html:p>
+
+  <checkbox
+    id="zotero-prefpane-__addonRef__-ragEnabled"
+    preference="ragEnabled"
+    label="Enable full-paper RAG for Q&amp;A / figure"
+  />
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-ragRetrievalMode">Retrieval mode</html:label>
+    <menulist
+      id="zotero-prefpane-__addonRef__-ragRetrievalMode"
+      preference="ragRetrievalMode"
+      native="true"
+    >
+      <menupopup>
+        <menuitem value="auto" label="auto (hybrid if embed key, else BM25)"/>
+        <menuitem value="bm25" label="bm25 only (no key)"/>
+        <menuitem value="hybrid" label="hybrid (requires embed key)"/>
+      </menupopup>
+    </menulist>
+  </hbox>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-ragTopK">Top-K (recall)</html:label>
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-ragTopK"
+      preference="ragTopK"
+      min="1"
+      max="32"
+      style="width:64px"
+      title="How many parent sections to inject after BM25 (default 12)"
+    />
+    <html:label for="zotero-prefpane-__addonRef__-ragStuffTokenLimit">Stuff limit</html:label>
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-ragStuffTokenLimit"
+      preference="ragStuffTokenLimit"
+      min="0"
+      style="width:80px"
+      title="If paper parents fit under this token budget, inject full paper (default 14000). 0 = always retrieve."
+    />
+  </hbox>
+
+  <label><html:b>Embeddings (optional)</html:b></label>
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-embeddingProvider">Provider</html:label>
+    <menulist
+      id="zotero-prefpane-__addonRef__-embeddingProvider"
+      preference="embeddingProvider"
+      native="true"
+    >
+      <menupopup>
+        <menuitem value="none" label="none (BM25 only)"/>
+        <menuitem value="openai" label="openai"/>
+        <menuitem value="openai-compatible" label="openai-compatible"/>
+      </menupopup>
+    </menulist>
+  </hbox>
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-embeddingBaseUrl">Base URL</html:label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-embeddingBaseUrl"
+      preference="embeddingBaseUrl"
+      placeholder="https://api.openai.com/v1"
+      style="min-width:220px"
+    />
+  </hbox>
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-embeddingApiKey">API key</html:label>
+    <html:input
+      type="password"
+      id="zotero-prefpane-__addonRef__-embeddingApiKey"
+      preference="embeddingApiKey"
+    />
+  </hbox>
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-embeddingModel">Model</html:label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-embeddingModel"
+      preference="embeddingModel"
+      placeholder="text-embedding-3-small"
+      style="min-width:180px"
+    />
+  </hbox>
+</groupbox>
+<vbox>
+  <html:label
+    data-l10n-id="pref-help"
+    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
+  ></html:label>
+</vbox>

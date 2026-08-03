@@ -1,0 +1,14 @@
+pref-title = Paper AI Colleague
+pref-provider = 提供方
+pref-model = 模型（可选）
+pref-targetLang = 目标语言
+pref-autoTranslate =
+    .label = PDF 选中文字时自动翻译
+pref-autoTranslateMinChars = 自动翻译最小字数
+pref-grokApiKey = Grok API Key（可选）
+pref-grokBaseUrl = Grok Base URL
+pref-grokAuthPath = Grok auth.json 路径
+pref-codexAuthPath = Codex auth.json 路径
+pref-test =
+    .label = 测试连接
+pref-help = { $name } Build { $version } { $time }. 认证: `codex login` / `grok login` 或设置 Grok API Key.
