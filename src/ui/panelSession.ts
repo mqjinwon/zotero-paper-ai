@@ -53,7 +53,9 @@ export function setSessionStatus(session: PanelSession, text: string): void {
     el.textContent = text;
     return;
   }
-  const byClass = session.root.querySelector(".pai-status") as HTMLElement | null;
+  const byClass = session.root.querySelector(
+    ".pai-status",
+  ) as HTMLElement | null;
   if (byClass) byClass.textContent = text;
 }
 

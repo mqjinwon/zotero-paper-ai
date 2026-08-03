@@ -92,10 +92,7 @@ export async function buildIndexFromDoc(
   const parents = chunks.filter(
     (c) => c.kind === "parent" || (c.kind === "abstract" && !c.parentId),
   );
-  const parentTokenEstimate = parents.reduce(
-    (s, c) => s + c.tokenEstimate,
-    0,
-  );
+  const parentTokenEstimate = parents.reduce((s, c) => s + c.tokenEstimate, 0);
 
   const indexed: IndexedChunk[] = chunks.map((c) => ({ ...c }));
 
@@ -250,8 +247,7 @@ export async function queryPaper(
     prefs.embeddingProvider,
     prefs.embeddingApiKey,
   );
-  const embedCfg =
-    effective === "hybrid" ? resolveEmbedConfig(prefs) : null;
+  const embedCfg = effective === "hybrid" ? resolveEmbedConfig(prefs) : null;
   if (embedCfg && opts.fetchImpl) embedCfg.fetchImpl = opts.fetchImpl;
 
   let queryBias = "";

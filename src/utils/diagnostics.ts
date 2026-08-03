@@ -31,7 +31,6 @@ export function diag(scope: string, message: string, detail?: unknown): void {
   lines.push(line);
   while (lines.length > MAX) lines.shift();
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ztoolkit = (globalThis as any).ztoolkit;
     ztoolkit?.log?.(line);
   } catch {
@@ -53,7 +52,6 @@ export function diagLines(): string[] {
 
 /** Build a full report for clipboard (includes env snapshot). */
 export function buildDiagnosticReport(extra?: Record<string, unknown>): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Z = (globalThis as any).Zotero;
   const env: Record<string, unknown> = {
     zoteroVersion: Z?.version || null,
@@ -85,7 +83,6 @@ export function buildDiagnosticReport(extra?: Record<string, unknown>): string {
 
 export async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = globalThis as any;
     if (g.navigator?.clipboard?.writeText) {
       await g.navigator.clipboard.writeText(text);
@@ -95,7 +92,6 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
     /* fall through */
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = globalThis as any;
     const Cc = g.Cc || g.Components?.classes;
     const Ci = g.Ci || g.Components?.interfaces;

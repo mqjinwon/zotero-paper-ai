@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { normalizeMathDelimiters, renderMarkdown } from "../../src/ui/markdown.ts";
+import {
+  normalizeMathDelimiters,
+  renderMarkdown,
+} from "../../src/ui/markdown.ts";
 import { buildSystemPrompt, buildUserPayload } from "../../src/llm/prompts.ts";
 import { runTask } from "../../src/llm/router.ts";
 import type { LLMClient } from "../../src/llm/types.ts";

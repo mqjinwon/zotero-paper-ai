@@ -17,7 +17,11 @@
 ## Tasks
 
 ### Task 1: Project identity + prefs
+
 ### Task 2: Auth modules + Node tests
+
 ### Task 3: LLM clients + router
+
 ### Task 4: Side panel UI + selection + KaTeX
+
 ### Task 5: Build XPI + live smoke

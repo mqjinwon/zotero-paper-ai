@@ -3,11 +3,7 @@
  */
 
 import { getPref } from "../utils/prefs";
-import type {
-  EmbeddingProvider,
-  RagPrefs,
-  RagRetrievalMode,
-} from "./types";
+import type { EmbeddingProvider, RagPrefs, RagRetrievalMode } from "./types";
 import { DEFAULT_RAG_PREFS } from "./types";
 
 function prefStr(key: string, fallback = ""): string {
@@ -47,11 +43,7 @@ function parseRetrievalMode(raw: string): RagRetrievalMode {
 }
 
 function parseEmbedProvider(raw: string): EmbeddingProvider {
-  if (
-    raw === "none" ||
-    raw === "openai" ||
-    raw === "openai-compatible"
-  ) {
+  if (raw === "none" || raw === "openai" || raw === "openai-compatible") {
     return raw;
   }
   return DEFAULT_RAG_PREFS.embeddingProvider;

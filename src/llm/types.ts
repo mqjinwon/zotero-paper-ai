@@ -1,10 +1,6 @@
 export type ProviderId = "grok" | "openai-codex";
 
-export type TaskMode =
-  | "translate"
-  | "explain"
-  | "chat"
-  | "figure-explain";
+export type TaskMode = "translate" | "explain" | "chat" | "figure-explain";
 
 /** OpenAI-compatible multimodal content part. */
 export type ContentPart =

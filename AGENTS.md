@@ -4,12 +4,12 @@ Compact facts for coding agents. Prose to user: Korean; code/comments/IDs: Engli
 
 ## Product map
 
-| Mode | Entry | RAG | Sticky | LLM path |
-|------|--------|-----|--------|----------|
-| translate | selection popup / panel | no | no | **`fastTranslate` only** |
-| explain | selection / panel | yes | yes | `runTask` + prompts |
-| chat | panel | yes | no | `runTask` + history |
-| figure-explain | area select / ann button | yes + caption merge | yes | vision `runTask` |
+| Mode           | Entry                    | RAG                 | Sticky | LLM path                 |
+| -------------- | ------------------------ | ------------------- | ------ | ------------------------ |
+| translate      | selection popup / panel  | no                  | no     | **`fastTranslate` only** |
+| explain        | selection / panel        | yes                 | yes    | `runTask` + prompts      |
+| chat           | panel                    | yes                 | no     | `runTask` + history      |
+| figure-explain | area select / ann button | yes + caption merge | yes    | vision `runTask`         |
 
 - **Never** `runTask({ mode: "translate" })` — throws. Type `PromptMode = Exclude<TaskMode,"translate">`.
 - `TaskMode` still includes `"translate"` for prefs/UI only.
@@ -60,10 +60,10 @@ How most Zotero plugins (template / scaffold) ship XPI — **not** by committing
 
 ### What users see on GitHub Releases
 
-| Asset | Role |
-|-------|------|
-| `*.xpi` | Installable plugin (per version tag `vX.Y.Z`) |
-| Release notes | Changelog for that version |
+| Asset                     | Role                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `*.xpi`                   | Installable plugin (per version tag `vX.Y.Z`)                                 |
+| Release notes             | Changelog for that version                                                    |
 | Special tag **`release`** | Holds **`update.json`** / **`update-beta.json`** only (auto-update manifests) |
 
 URLs (this repo’s `zotero-plugin.config.ts`):
@@ -96,14 +96,14 @@ URLs (this repo’s `zotero-plugin.config.ts`):
 
 ### Agent rules (git / release)
 
-| Do | Don’t |
-|----|--------|
-| Feature work: **branch + PR** to `main` | Force-push `main` / rewrite published tags |
-| Release from **up-to-date `main`**, green CI | Release from dirty tree / random feature branch |
-| Use **`npm run release`** (tag-driven CI) | Manually invent version without tag/workflow |
-| Real `addonID` + `repository` in `package.json` | Placeholder `@local.dev` / `github.com/local` |
-| Confirm Release has XPI + notes | Assume local XPI == published |
-| Secrets only in prefs / `~/.grok` / CI secrets | Commit keys, auth.json, or log tokens |
+| Do                                              | Don’t                                           |
+| ----------------------------------------------- | ----------------------------------------------- |
+| Feature work: **branch + PR** to `main`         | Force-push `main` / rewrite published tags      |
+| Release from **up-to-date `main`**, green CI    | Release from dirty tree / random feature branch |
+| Use **`npm run release`** (tag-driven CI)       | Manually invent version without tag/workflow    |
+| Real `addonID` + `repository` in `package.json` | Placeholder `@local.dev` / `github.com/local`   |
+| Confirm Release has XPI + notes                 | Assume local XPI == published                   |
+| Secrets only in prefs / `~/.grok` / CI secrets  | Commit keys, auth.json, or log tokens           |
 
 ### Manual emergency publish (last resort)
 
@@ -114,7 +114,7 @@ If CI broken: `npm run build` → GitHub → Releases → tag `vX.Y.Z` → uploa
 1. `package.json`: version, repository, homepage, addonID (`paper-ai@mqjinwon.github.io`)
 2. Create empty GitHub repo **`zotero-paper-ai`** under `mqjinwon` (or rename package URLs)
 3. `git remote add origin …` → push `main` → enable Actions
-4. README install → Releases; no secrets in tree (`rg` for sk-/xai-/ghp_)
+4. README install → Releases; no secrets in tree (`rg` for sk-/xai-/ghp\_)
 5. `npm run release` → tag → green workflow → XPI on Release page
 
 ### Security (public)

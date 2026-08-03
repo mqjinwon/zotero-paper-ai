@@ -14,8 +14,7 @@ export class PaperAIFactory {
   }
 
   static registerReaderPane() {
-    const icon16 =
-      rootURI + "content/icons/favicon@0.5x.png";
+    const icon16 = rootURI + "content/icons/favicon@0.5x.png";
     const icon20 = rootURI + "content/icons/favicon.png";
 
     const key = Zotero.ItemPaneManager.registerSection({
@@ -63,9 +62,8 @@ export class PaperAIFactory {
         let isReader = tabType === "reader";
         if (!isReader) {
           try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const tabs = (globalThis as any).Zotero_Tabs;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
             const reader = Zotero.Reader?.getByTabID?.(tabs?.selectedID);
             isReader = !!reader;
           } catch {

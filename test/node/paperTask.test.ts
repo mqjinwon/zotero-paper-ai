@@ -11,10 +11,7 @@ import { createNodeFileStore } from "../../src/auth/nodeFileStore.ts";
 import { shouldUseRag } from "../../src/rag/config.ts";
 import { buildExtractedDoc } from "../../src/rag/extract.ts";
 import { paperRefOf } from "../../src/rag/paperRef.ts";
-import {
-  attachRagContext,
-  formatUserVisible,
-} from "../../src/ui/paperTask.ts";
+import { attachRagContext, formatUserVisible } from "../../src/ui/paperTask.ts";
 
 const FIXTURE = `
 Abstract
@@ -35,7 +32,7 @@ describe("paperTask mode gating", () => {
     assert.equal(shouldUseRag(true, "chat"), true);
     assert.equal(shouldUseRag(true, "explain"), true);
     assert.equal(shouldUseRag(true, "figure-explain"), true);
-    
+
     assert.equal(shouldUseRag(true, "translate"), false);
     assert.equal(shouldUseRag(false, "chat"), false);
   });

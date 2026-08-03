@@ -14,9 +14,7 @@ export function tokenize(text: string): string[] {
     .replace(/([a-z가-힣])(\d)/gi, "$1 $2")
     .replace(/(\d)([a-z가-힣])/gi, "$1 $2")
     .replace(/[^a-z0-9가-힣\s]+/gi, " ");
-  return soft
-    .split(/\s+/)
-    .filter((t) => t.length > 1 || /^\d+$/.test(t));
+  return soft.split(/\s+/).filter((t) => t.length > 1 || /^\d+$/.test(t));
 }
 
 export interface Bm25Index {
@@ -30,8 +28,7 @@ export interface Bm25Index {
 export function buildBm25(docs: string[]): Bm25Index {
   const docTokens = docs.map(tokenize);
   const docLen = docTokens.map((t) => t.length);
-  const avgdl =
-    docLen.reduce((a, b) => a + b, 0) / Math.max(1, docLen.length);
+  const avgdl = docLen.reduce((a, b) => a + b, 0) / Math.max(1, docLen.length);
   const df = new Map<string, number>();
   for (const toks of docTokens) {
     const seen = new Set(toks);

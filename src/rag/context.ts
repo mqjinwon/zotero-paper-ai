@@ -122,15 +122,12 @@ export function htmlCiteLink(
 ): string {
   const hint = opts?.withPageHint === false ? "" : pageHint(c);
   const href = hrefFor(c);
-  const pageAttr =
-    c.pageStart != null ? ` data-page="${c.pageStart}"` : "";
+  const pageAttr = c.pageStart != null ? ` data-page="${c.pageStart}"` : "";
   const previewAttr = c.preview
     ? ` data-preview="${escapeHtml(c.preview)}"`
     : "";
   const title = escapeHtml(
-    c.preview
-      ? `${c.preview}${c.preview.length >= 120 ? "…" : ""}`
-      : c.label,
+    c.preview ? `${c.preview}${c.preview.length >= 120 ? "…" : ""}` : c.label,
   );
   return (
     `<a class="paperai-cite" href="${href}" title="${title}"` +
@@ -139,7 +136,10 @@ export function htmlCiteLink(
 }
 
 /** @deprecated use htmlCiteLink — kept for tests that check page hrefs */
-export function mdCiteLink(c: CiteLink, opts?: { withPageHint?: boolean }): string {
+export function mdCiteLink(
+  c: CiteLink,
+  opts?: { withPageHint?: boolean },
+): string {
   // Emit HTML so marked passes it through; still works in node tests via string match
   return htmlCiteLink(c, opts);
 }

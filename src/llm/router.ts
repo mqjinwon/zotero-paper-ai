@@ -55,7 +55,7 @@ export async function runTask(
 ): Promise<string> {
   if (opts.mode === "translate") {
     throw new Error(
-      "Translate uses fastTranslate only — do not call runTask({ mode: \"translate\" }).",
+      'Translate uses fastTranslate only — do not call runTask({ mode: "translate" }).',
     );
   }
 
@@ -94,7 +94,11 @@ export async function runTask(
           },
         ];
 
-  if (opts.mode === "figure-explain" && !opts.image?.base64 && !opts.selection) {
+  if (
+    opts.mode === "figure-explain" &&
+    !opts.image?.base64 &&
+    !opts.selection
+  ) {
     throw new Error(
       "Figure explain needs an image crop or selected text. " +
         "Use Select Area on the PDF, or select caption text near the figure.",

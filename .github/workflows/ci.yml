@@ -36,9 +36,11 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs:
-      - build
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@main
-      - run: npm run test
+      # Node unit suite (real src/* via tsx). Do NOT use `npm test` /
+      # zotero-plugin test here — it esbuilds test/node for Firefox and fails
+      # on node:fs / node:test without a Zotero binary.
+      - name: Run Node unit tests
+        run: npm run ci:test

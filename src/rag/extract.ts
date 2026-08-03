@@ -51,9 +51,7 @@ export function buildExtractedDoc(input: ExtractInput): ExtractedDoc {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function readUtf8Path(path: string): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const IOUtils = (globalThis as any).IOUtils;
   if (!IOUtils?.readUTF8) return "";
   try {
@@ -65,7 +63,6 @@ async function readUtf8Path(path: string): Promise<string> {
 }
 
 async function tryFulltextForId(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Z: any,
   itemID: number,
 ): Promise<{ text: string; how: string }> {
@@ -116,7 +113,6 @@ async function tryFulltextForId(
 }
 
 async function tryIndexThenRead(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Z: any,
   itemID: number,
 ): Promise<{ text: string; how: string }> {
@@ -171,7 +167,6 @@ async function tryIndexThenRead(
 }
 
 function collectItemIdsForExtract(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Z: any,
   opts: { itemKey: string; itemID?: number },
 ): number[] {
@@ -186,7 +181,11 @@ function collectItemIdsForExtract(
     let item =
       (opts.itemID && Z.Items.get(opts.itemID)) ||
       (opts.itemKey && Z.Items.getByLibraryAndKey?.(1, opts.itemKey));
-    if (!item && opts.itemKey && typeof Z.Items.getByLibraryAndKey === "function") {
+    if (
+      !item &&
+      opts.itemKey &&
+      typeof Z.Items.getByLibraryAndKey === "function"
+    ) {
       try {
         const libs = Z.Libraries?.getAll?.() || [];
         for (const lib of libs) {
@@ -210,7 +209,9 @@ function collectItemIdsForExtract(
     } else {
       try {
         const atts =
-          typeof item.getAttachments === "function" ? item.getAttachments() : [];
+          typeof item.getAttachments === "function"
+            ? item.getAttachments()
+            : [];
         for (const aid of atts) {
           push(aid);
           try {
@@ -236,9 +237,7 @@ function collectItemIdsForExtract(
   return ids;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mainWin(): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Z = (globalThis as any).Zotero;
   try {
     return Z?.getMainWindow?.() || globalThis;
@@ -252,12 +251,11 @@ async function extractViaReaderPdfJs(): Promise<{
   pages: Array<{ page: number; text: string }>;
 }> {
   const pages: Array<{ page: number; text: string }> = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const Z = (globalThis as any).Zotero;
   const win = mainWin();
   const tabs = win?.Zotero_Tabs || (globalThis as any).Zotero_Tabs;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const readers: any[] = [];
   try {
     if (tabs?.selectedID && Z?.Reader?.getByTabID) {
@@ -275,11 +273,9 @@ async function extractViaReaderPdfJs(): Promise<{
 
   for (const r of readers) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const apps: any[] = [];
       const pushApp = (w: unknown) => {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const app = (w as any)?.PDFViewerApplication;
           if (app && !apps.includes(app)) apps.push(app);
         } catch {
@@ -355,7 +351,6 @@ export async function extractPaperFromZotero(opts: {
   title?: string;
   itemID?: number;
 }): Promise<ExtractedDoc> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Z = (globalThis as any).Zotero;
   if (!Z) {
     throw new Error("Zotero global not available for paper extract");

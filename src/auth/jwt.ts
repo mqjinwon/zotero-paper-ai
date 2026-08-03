@@ -5,8 +5,9 @@ function b64urlDecode(data: string): string {
   const b64 = (data + pad).replace(/-/g, "+").replace(/_/g, "/");
   if (typeof atob === "function") {
     return decodeURIComponent(
-      Array.from(atob(b64), (c) =>
-        `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`,
+      Array.from(
+        atob(b64),
+        (c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`,
       ).join(""),
     );
   }

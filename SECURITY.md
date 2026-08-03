@@ -2,13 +2,13 @@
 
 ## Secrets
 
-| Store | Location | In git? |
-|-------|----------|---------|
-| Grok OAuth | `~/.grok/auth.json` | **Never** |
-| Codex OAuth | `~/.codex/auth.json` | **Never** |
-| Grok API key | Zotero prefs (`grokApiKey`) | **Never** (local profile only) |
-| Embed API key | Zotero prefs | **Never** |
-| GitHub token | CI `GITHUB_TOKEN` / local env | **Never** commit |
+| Store         | Location                      | In git?                        |
+| ------------- | ----------------------------- | ------------------------------ |
+| Grok OAuth    | `~/.grok/auth.json`           | **Never**                      |
+| Codex OAuth   | `~/.codex/auth.json`          | **Never**                      |
+| Grok API key  | Zotero prefs (`grokApiKey`)   | **Never** (local profile only) |
+| Embed API key | Zotero prefs                  | **Never**                      |
+| GitHub token  | CI `GITHUB_TOKEN` / local env | **Never** commit               |
 
 - Do not log access/refresh tokens or full API keys (`diag` must not include them).
 - Prefs password fields: use `type="password"` in `preferences.xhtml`.

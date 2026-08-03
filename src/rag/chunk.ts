@@ -156,7 +156,7 @@ function splitRecursive(
 
   let rest = text;
   while (estimateTokens(rest) > maxTokens) {
-    let cut = Math.min(rest.length, targetChars);
+    const cut = Math.min(rest.length, targetChars);
     const window = rest.slice(0, cut);
     let best = -1;
     for (const sep of seps) {
@@ -176,10 +176,7 @@ function splitRecursive(
   return parts.filter(Boolean);
 }
 
-export function chunkDocument(
-  doc: ExtractedDoc,
-  opts?: ChunkOptions,
-): Chunk[] {
+export function chunkDocument(doc: ExtractedDoc, opts?: ChunkOptions): Chunk[] {
   const o = { ...DEFAULTS, ...opts };
   const sections = splitIntoSections(doc.fullText, doc.pages);
   const chunks: Chunk[] = [];

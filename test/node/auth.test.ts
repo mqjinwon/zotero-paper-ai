@@ -186,7 +186,9 @@ describe("defaults", () => {
     assert.ok(codex.endsWith(path.join(".codex", "auth.json")));
     assert.ok(grok.endsWith(path.join(".grok", "auth.json")));
     // silence unused
-    await mkdir(path.dirname(codex), { recursive: true }).catch(() => undefined);
+    await mkdir(path.dirname(codex), { recursive: true }).catch(
+      () => undefined,
+    );
   });
 
   it("expands ~ in resolvePath", async () => {

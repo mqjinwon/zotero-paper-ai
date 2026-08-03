@@ -18,7 +18,9 @@ export interface OpenPaperRef {
 /** Last reader attachment id seen from Reader events (selection popup, etc.). */
 let lastKnownAttachmentId: number | null = null;
 
-export function rememberReaderAttachmentId(id: number | string | null | undefined): void {
+export function rememberReaderAttachmentId(
+  id: number | string | null | undefined,
+): void {
   const n = Number(id);
   if (Number.isFinite(n) && n > 0) lastKnownAttachmentId = n;
 }
@@ -27,9 +29,7 @@ export function getLastKnownAttachmentId(): number | null {
   return lastKnownAttachmentId;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mainWindow(): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Z = (globalThis as any).Zotero;
   try {
     if (typeof Z?.getMainWindow === "function") {
@@ -50,13 +50,11 @@ function mainWindow(): any {
   return globalThis;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getTabs(): any {
   const win = mainWindow();
   return win?.Zotero_Tabs || (globalThis as any).Zotero_Tabs || null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function itemToRef(item: any, source: string): OpenPaperRef | null {
   if (!item) return null;
   try {
@@ -69,7 +67,9 @@ function itemToRef(item: any, source: string): OpenPaperRef | null {
     if (!itemKey) return null;
     let title = "";
     try {
-      title = String(parent.getField?.("title") || item.getField?.("title") || "");
+      title = String(
+        parent.getField?.("title") || item.getField?.("title") || "",
+      );
     } catch {
       title = "";
     }
@@ -84,8 +84,11 @@ function itemToRef(item: any, source: string): OpenPaperRef | null {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function refFromItemId(Z: any, id: number | string, source: string): OpenPaperRef | null {
+function refFromItemId(
+  Z: any,
+  id: number | string,
+  source: string,
+): OpenPaperRef | null {
   const n = Number(id);
   if (!Number.isFinite(n) || n <= 0) return null;
   try {
@@ -96,7 +99,6 @@ function refFromItemId(Z: any, id: number | string, source: string): OpenPaperRe
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function itemIdFromReader(r: any): number | null {
   if (!r) return null;
   const candidates = [
@@ -119,7 +121,6 @@ function itemIdFromReader(r: any): number | null {
  */
 export function getOpenPaperRef(): OpenPaperRef | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Z = (globalThis as any).Zotero;
     if (!Z?.Items) return null;
 
@@ -159,7 +160,9 @@ export function getOpenPaperRef(): OpenPaperRef | null {
           (typeof tabs.getState === "function" ? tabs.getState() : null) ||
           tabs._tabs ||
           [];
-        const tab = list.find((t: any) => t?.id === selectedID) || list.find((t: any) => t?.selected);
+        const tab =
+          list.find((t: any) => t?.id === selectedID) ||
+          list.find((t: any) => t?.selected);
         const dataId = tab?.data?.itemID ?? tab?.data?.id;
         if (dataId) {
           rememberReaderAttachmentId(dataId);
@@ -181,7 +184,7 @@ export function getOpenPaperRef(): OpenPaperRef | null {
       try {
         // Prefer reader whose tabID is selected
         const readers: any[] = Z.Reader._readers;
-        let chosen =
+        const chosen =
           (selectedID && readers.find((r) => r?.tabID === selectedID)) ||
           readers[readers.length - 1];
         const id = itemIdFromReader(chosen);
@@ -224,7 +227,11 @@ export function getOpenPaperRef(): OpenPaperRef | null {
             const att = Z.Items.get(aid);
             if (
               att &&
-              /pdf/i.test(String(att.attachmentContentType || att.getField?.("title") || ""))
+              /pdf/i.test(
+                String(
+                  att.attachmentContentType || att.getField?.("title") || "",
+                ),
+              )
             ) {
               const ref = itemToRef(att, "library-selected-pdf-child");
               if (ref) return ref;

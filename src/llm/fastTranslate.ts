@@ -48,7 +48,7 @@ export async function warmLLM(
 ): Promise<void> {
   const client = getOrCreateClient(store, cfg);
   // Tiny no-op complete is too expensive; just resolve auth via a throwaway call path.
-  // Grok/Codex clients resolve token on complete — fire a micro complete and abort? 
+  // Grok/Codex clients resolve token on complete — fire a micro complete and abort?
   // Better: import get token directly.
   try {
     if (cfg.provider === "grok") {

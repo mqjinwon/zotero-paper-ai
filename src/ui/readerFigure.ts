@@ -15,10 +15,7 @@ import {
 import { getOpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
 import { diag } from "../utils/diagnostics";
-import {
-  buildFigureContextBundle,
-  mergeFigureEvidence,
-} from "./figureContext";
+import { buildFigureContextBundle, mergeFigureEvidence } from "./figureContext";
 import {
   annotationLocationFromReader,
   captureAnnotationByKey,
@@ -40,7 +37,6 @@ import {
 import { itemKeyFromReader, getLastAnnotationParams } from "./readerSelection";
 
 export async function runFigureStickyTask(opts: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader?: any;
   /** Prefer this annotation key (Select Area result) */
   annotationKey?: string;
@@ -50,9 +46,8 @@ export async function runFigureStickyTask(opts: {
   question?: string;
   statusEl?: HTMLElement | null;
 }): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Z = (globalThis as any).Zotero;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let reader: any = opts.reader;
   if (!reader) {
     try {
@@ -97,7 +92,9 @@ export async function runFigureStickyTask(opts: {
     }
   }
   if (!capture?.image?.base64) {
-    setStatus("이미지를 읽지 못했습니다. Select Area 후 사이드바/우클릭「그림 설명」을 사용하세요.");
+    setStatus(
+      "이미지를 읽지 못했습니다. Select Area 후 사이드바/우클릭「그림 설명」을 사용하세요.",
+    );
     new ztoolkit.ProgressWindow(config.addonName)
       .createLine({
         text: "Select Area 이미지를 못 읽음 → 주석 우클릭 또는 이미지 우측「그림 설명」",
@@ -120,10 +117,7 @@ export async function runFigureStickyTask(opts: {
     capture.pageIndex ??
     pos.pdfLocation?.position?.pageIndex ??
     pos.pdfLocation?.pageIndex;
-  let rects =
-    capture.rects ||
-    pos.pdfLocation?.position?.rects ||
-    undefined;
+  let rects = capture.rects || pos.pdfLocation?.position?.rects || undefined;
   if (annKey) {
     const loc = annotationLocationFromReader(reader, annKey);
     if (loc.pageIndex != null) pageIndex = loc.pageIndex;
@@ -159,7 +153,10 @@ export async function runFigureStickyTask(opts: {
       const vw = shellWin?.innerWidth || 900;
       // Use right side of reader for sticky; region is tracked via PDF rects
       x = Math.max(16, vw - 340);
-      y = Math.max(8, Math.min(capture.clientRect.top, (shellWin?.innerHeight || 800) - 120));
+      y = Math.max(
+        8,
+        Math.min(capture.clientRect.top, (shellWin?.innerHeight || 800) - 120),
+      );
     } catch {
       /* keep pos */
     }
@@ -293,7 +290,9 @@ export async function runFigureStickyTask(opts: {
       answer = `${answer}\n\n——\n캡션 후보: ${bundle.labels.slice(0, 6).join(" · ")}`;
     }
     answer = answer || "(empty)";
-    await updateStickyAnswer(itemKey, sticky.id, answer, reader, { final: true });
+    await updateStickyAnswer(itemKey, sticky.id, answer, reader, {
+      final: true,
+    });
     setStatus("완료 · PDF 위 고정 메모 (×로 닫기)");
     diag("figure", "sticky explain done", {
       itemKey,
@@ -304,12 +303,13 @@ export async function runFigureStickyTask(opts: {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await updateStickyAnswer(itemKey, sticky.id, `오류: ${msg}`, reader, { final: true });
+    await updateStickyAnswer(itemKey, sticky.id, `오류: ${msg}`, reader, {
+      final: true,
+    });
     setStatus(msg);
     diag("figure", "sticky explain fail", msg);
   }
 }
-
 
 function isImageLikeAnnotation(ann: {
   type?: string;
@@ -319,7 +319,8 @@ function isImageLikeAnnotation(ann: {
 }): boolean {
   const type = String(ann?.type || ann?.annotationType || "");
   if (/image|ink|area/i.test(type)) return true;
-  if (typeof ann?.image === "string" && ann.image.startsWith("data:")) return true;
+  if (typeof ann?.image === "string" && ann.image.startsWith("data:"))
+    return true;
   if (
     typeof ann?.annotationImageDataURL === "string" &&
     ann.annotationImageDataURL.startsWith("data:")
@@ -334,9 +335,8 @@ function isImageLikeAnnotation(ann: {
 function makeFigureExplainButton(
   doc: Document,
   opts: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     reader?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     ann?: any;
     key: string;
     compact?: boolean;
@@ -408,10 +408,9 @@ function makeFigureExplainButton(
 }
 
 export function onRenderSidebarAnnotationHeader(event: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader?: any;
   doc: Document;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   params?: any;
   append: (...nodes: Array<Node | string>) => void;
 }): void {
@@ -435,12 +434,11 @@ export function onRenderSidebarAnnotationHeader(event: {
  */
 const FIG_BTN_HOOK = "__paperaiFigureBtnHook";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function installFigureAnnotationButtons(reader: any): void {
   if (!reader) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   if ((reader as any)[FIG_BTN_HOOK]) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   (reader as any)[FIG_BTN_HOOK] = true;
 
   const tick = () => {
@@ -458,7 +456,6 @@ export function installFigureAnnotationButtons(reader: any): void {
   setTimeout(() => clearInterval(id), 1000 * 60 * 30);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function refreshFigureAnnotationButtons(reader: any): void {
   const wins: Window[] = [];
   const push = (w: unknown) => {
@@ -473,7 +470,6 @@ function refreshFigureAnnotationButtons(reader: any): void {
   // Collect image annotation keys from in-memory map
   const imageKeys = new Set<string>();
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const view: any =
       reader?._internalReader?._primaryView ||
       reader?._internalReader?._views?.[0];
@@ -523,10 +519,7 @@ function refreshFigureAnnotationButtons(reader: any): void {
         const top = Math.min(prev.top, r.top);
         const right = Math.max(prev.right, r.right);
         const bottom = Math.max(prev.bottom, r.bottom);
-        byId.set(
-          key,
-          new DOMRect(left, top, right - left, bottom - top),
-        );
+        byId.set(key, new DOMRect(left, top, right - left, bottom - top));
       }
     }
 
@@ -557,4 +550,3 @@ function refreshFigureAnnotationButtons(reader: any): void {
     }
   }
 }
-

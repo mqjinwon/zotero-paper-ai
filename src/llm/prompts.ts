@@ -12,7 +12,10 @@ export const MATH_PRESERVE =
  * System prompts for explain / figure / chat only.
  * Translate must use fastTranslate — never call this with mode "translate".
  */
-export function buildSystemPrompt(mode: PromptMode, targetLang: string): string {
+export function buildSystemPrompt(
+  mode: PromptMode,
+  targetLang: string,
+): string {
   switch (mode) {
     case "explain":
       return (
@@ -70,8 +73,7 @@ export function buildUserPayload(opts: {
   if (opts.paperTitle) parts.push(`Paper title: ${opts.paperTitle}`);
   if (opts.context) {
     const isRagBlock =
-      opts.context.includes("Evidence passages") ||
-      opts.context.includes("[§");
+      opts.context.includes("Evidence passages") || opts.context.includes("[§");
     parts.push(
       isRagBlock
         ? `Paper evidence (RAG):\n${opts.context}`

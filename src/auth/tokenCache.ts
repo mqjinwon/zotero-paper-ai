@@ -16,10 +16,7 @@ export function cacheKey(provider: string, pathOrApi: string): string {
   return `${provider}::${pathOrApi || "default"}`;
 }
 
-export function getCachedToken(
-  key: string,
-  minTtl = 120,
-): CacheEntry | null {
+export function getCachedToken(key: string, minTtl = 120): CacheEntry | null {
   const e = cache.get(key);
   if (!e?.token) return null;
   if (e.expiresAt == null) return e;

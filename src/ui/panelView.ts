@@ -316,9 +316,12 @@ function btn(
   label: string,
   className = "pai-btn",
 ): HTMLElement {
-  return el(doc, "button", { type: "button", class: className, "data-act": act }, [
-    label,
-  ]);
+  return el(
+    doc,
+    "button",
+    { type: "button", class: className, "data-act": act },
+    [label],
+  );
 }
 
 /** Build panel with createElement only; returns root. */
@@ -411,12 +414,19 @@ export function buildPanelDom(
       el(doc, "p", { class: "pai-muted" }, [
         "페이지 순. 항목 클릭 → 원문 이동·메모 펼침. PDF 위 메모는 — 로 접기, 점선은 인용 위치와 연결됩니다.",
       ]),
-      el(doc, "div", {
-        class: "pai-sticky-list",
-        "data-pai-sticky-list": "1",
-      }, [
-        el(doc, "div", { class: "pai-muted" }, ["메모 없음 — PDF에서 번역/설명하면 여기에 쌓입니다."]),
-      ]),
+      el(
+        doc,
+        "div",
+        {
+          class: "pai-sticky-list",
+          "data-pai-sticky-list": "1",
+        },
+        [
+          el(doc, "div", { class: "pai-muted" }, [
+            "메모 없음 — PDF에서 번역/설명하면 여기에 쌓입니다.",
+          ]),
+        ],
+      ),
     ]),
   );
 
@@ -448,7 +458,9 @@ export function buildPanelDom(
     ]),
   );
 
-  stack.appendChild(el(doc, "div", { class: "pai-status", "data-pai-status": "1" }));
+  stack.appendChild(
+    el(doc, "div", { class: "pai-status", "data-pai-status": "1" }),
+  );
 
   root.appendChild(stack);
   container.appendChild(root);

@@ -3,10 +3,7 @@ import { resolveFeatureConfig } from "./llm/featureConfig";
 import { warmLLM } from "./llm/fastTranslate";
 import { PaperAIFactory } from "./modules/paperAI";
 import { registerPrefsScripts } from "./modules/preferenceScript";
-import {
-  startSelectionUX,
-  stopSelectionUX,
-} from "./ui/selectionUX";
+import { startSelectionUX, stopSelectionUX } from "./ui/selectionUX";
 import { getString, initLocale } from "./utils/locale";
 import { createZToolkit } from "./utils/ztoolkit";
 

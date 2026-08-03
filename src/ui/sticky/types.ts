@@ -77,7 +77,10 @@ export function kindColor(kind: StickyKind): string {
   }
 }
 
-export function clampStickySize(w: number, h: number): { w: number; h: number } {
+export function clampStickySize(
+  w: number,
+  h: number,
+): { w: number; h: number } {
   return {
     w: Math.max(STICKY_MIN_W, Math.min(720, Math.round(w))),
     h: Math.max(STICKY_MIN_H, Math.min(900, Math.round(h))),

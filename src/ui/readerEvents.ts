@@ -40,7 +40,10 @@ import {
   type StickyKind,
 } from "./stickyNotes";
 
-export { getLastReaderSelection, setLastReaderSelection } from "./readerSelection";
+export {
+  getLastReaderSelection,
+  setLastReaderSelection,
+} from "./readerSelection";
 export { runFigureStickyTask } from "./readerFigure";
 
 const TRANSLATE_BOX_MIN_W = 240;
@@ -309,7 +312,6 @@ function createTranslateResultBox(
     if (!v || v === "번역 중…") return;
     void (async () => {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const nav = (doc.defaultView as any)?.navigator || navigator;
         if (nav?.clipboard?.writeText) {
           await nav.clipboard.writeText(v);
@@ -363,7 +365,7 @@ function createTranslateResultBox(
 /** Stream translate into status/popup only — no sticky note. */
 export async function runTranslateOnly(opts: {
   text: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any;
   statusEl?: HTMLElement | null;
   /** Document that hosts the selection popup (for re-paint after re-render) */
@@ -379,11 +381,9 @@ export async function runTranslateOnly(opts: {
   const doc =
     opts.doc ||
     opts.statusEl?.ownerDocument ||
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (opts.reader as any)?._iframeWindow?.document ||
     null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let prog: any = null;
   if (!opts.statusEl && !doc) {
     try {
@@ -452,9 +452,9 @@ export async function runStickyTask(opts: {
   mode: "translate" | "explain";
   text: string;
   question?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   params?: any;
   statusEl?: HTMLElement | null;
   doc?: Document | null;
@@ -473,9 +473,9 @@ export async function runStickyTask(opts: {
   }
 
   const question = (opts.question || "").trim();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const Z = (globalThis as any).Zotero;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let reader: any = opts.reader;
   if (!reader) {
     try {
@@ -591,7 +591,9 @@ export async function runStickyTask(opts: {
     });
 
     answer = answer || "(empty)";
-    await updateStickyAnswer(itemKey, sticky.id, answer, reader, { final: true });
+    await updateStickyAnswer(itemKey, sticky.id, answer, reader, {
+      final: true,
+    });
 
     void saveAsPdfAnnotation({
       reader,
@@ -613,7 +615,9 @@ export async function runStickyTask(opts: {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await updateStickyAnswer(itemKey, sticky.id, `오류: ${msg}`, reader, { final: true });
+    await updateStickyAnswer(itemKey, sticky.id, `오류: ${msg}`, reader, {
+      final: true,
+    });
     if (opts.statusEl) opts.statusEl.textContent = msg;
     diag("sticky", "task fail", msg);
   }
@@ -621,12 +625,11 @@ export async function runStickyTask(opts: {
 
 const COMPOSER_ID = "paperai-explain-composer";
 let composerKeyShield: ((ev: Event) => void) | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 let composerShieldWin: any = null;
 
 function removeExplainComposer(): void {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Z = (globalThis as any).Zotero;
     const wins = [
       Z?.getMainWindow?.(),
@@ -645,11 +648,7 @@ function removeExplainComposer(): void {
   }
   if (composerKeyShield && composerShieldWin) {
     try {
-      composerShieldWin.removeEventListener(
-        "keydown",
-        composerKeyShield,
-        true,
-      );
+      composerShieldWin.removeEventListener("keydown", composerKeyShield, true);
     } catch {
       /* ignore */
     }
@@ -660,20 +659,20 @@ function removeExplainComposer(): void {
 
 function openExplainComposer(opts: {
   text: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   params?: any;
 }): void {
   removeExplainComposer();
   const text = (opts.text || "").trim();
   if (!text) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const Z = (globalThis as any).Zotero;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const win: any = Z?.getMainWindow?.() || globalThis;
   const rdoc: Document = win.document;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const reader = opts.reader;
 
   const wrap = rdoc.createElement("div");
@@ -716,8 +715,7 @@ function openExplainComposer(opts: {
   wrap.appendChild(head);
 
   const preview = rdoc.createElement("div");
-  preview.textContent =
-    text.length > 180 ? text.slice(0, 180) + "…" : text;
+  preview.textContent = text.length > 180 ? text.slice(0, 180) + "…" : text;
   Object.assign(preview.style, {
     maxHeight: "64px",
     overflow: "auto",
@@ -855,10 +853,9 @@ function openExplainComposer(opts: {
 }
 
 function onRenderTextSelectionPopup(event: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader?: any;
   doc: Document;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   params?: any;
   append: (...nodes: Array<Node | string>) => void;
 }): void {
@@ -915,7 +912,6 @@ function onRenderTextSelectionPopup(event: {
   const resolveText = (): string => {
     let t = text;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const live = (reader as any)?._iframeWindow
         ?.getSelection?.()
         ?.toString?.();
@@ -990,15 +986,10 @@ function onRenderTextSelectionPopup(event: {
   }
 }
 
-function onRenderToolbar(event: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  reader?: any;
-}): void {
+function onRenderToolbar(event: { reader?: any }): void {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r =
       event.reader ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (globalThis as any).Zotero?.Reader?._readers?.slice?.(-1)?.[0];
     const key = itemKeyFromReader(r);
     if (key && key !== "unknown") void mountStickiesForReader(r, key);
@@ -1009,7 +1000,6 @@ function onRenderToolbar(event: {
 }
 
 function onCreateViewContextMenu(event: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader?: any;
   append: (params: {
     label: string;
@@ -1021,12 +1011,9 @@ function onCreateViewContextMenu(event: {
   const run = (mode: "translate" | "explain") => {
     let text = getLastReaderSelection();
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r =
         reader ||
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (globalThis as any).Zotero?.Reader?.getByTabID?.(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ((globalThis as any).Zotero?.getMainWindow?.() || globalThis)
             .Zotero_Tabs?.selectedID,
         );
@@ -1060,9 +1047,8 @@ function onCreateViewContextMenu(event: {
 }
 
 function onCreateAnnotationContextMenu(event: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader?: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   params?: any;
   append: (params: {
     label: string;

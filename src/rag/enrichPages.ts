@@ -5,9 +5,7 @@
 
 import type { RetrievedEvidence } from "./types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function resolveZotero(): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = globalThis as any;
   if (g.Zotero) return g.Zotero;
   try {
@@ -26,11 +24,9 @@ function resolveZotero(): any {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function findOpenPdfApp(): any {
   const tryWin = (w: unknown) => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const app = (w as any)?.PDFViewerApplication;
       if (app?.pdfDocument || app?.pdfViewer) return app;
     } catch {
@@ -90,7 +86,7 @@ export function findOpenPdfApp(): any {
 /** Prefer a mid-chunk phrase so incomplete leading words don't break search. */
 export function pickSearchNeedle(text: string): string {
   const cleaned = String(text || "")
-    .replace(/[^\w\s.,;:%\-]/g, " ")
+    .replace(/[^\w\s.,;:%-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   const words = cleaned.split(" ").filter((w) => w.length > 2);
@@ -99,8 +95,10 @@ export function pickSearchNeedle(text: string): string {
   return words.slice(start, start + 10).join(" ");
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function findPageForNeedle(app: any, needle: string): Promise<number | null> {
+async function findPageForNeedle(
+  app: any,
+  needle: string,
+): Promise<number | null> {
   if (!app?.pdfDocument || !needle || needle.length < 8) return null;
   const n = needle.toLowerCase();
   const variants = [
@@ -148,7 +146,7 @@ function sectionHeuristicPage(
   const bi = bodyIndex(section);
   if (bi != null && maxBody > 0) {
     // Spread Body (1..N) across the PDF
-    const page = Math.ceil((bi - 0.25) / maxBody * numPages);
+    const page = Math.ceil(((bi - 0.25) / maxBody) * numPages);
     return Math.max(1, Math.min(numPages, page));
   }
   return null;
@@ -198,7 +196,8 @@ export async function enrichEvidenceWithPages(
     // 2) Heuristic from section / Body (n)
     if (page == null && numPages > 0) {
       page = sectionHeuristicPage(e.chunk.section || "", numPages, maxBody);
-      if (page != null) via = via === "none" || via === "search" ? via + "+heur" : via;
+      if (page != null)
+        via = via === "none" || via === "search" ? via + "+heur" : via;
     }
 
     if (page != null && page > 0) {
@@ -209,5 +208,8 @@ export async function enrichEvidenceWithPages(
     }
   }
 
-  return { filled, via: via === "none" ? (numPages ? "heur-miss" : "no-pdf") : via };
+  return {
+    filled,
+    via: via === "none" ? (numPages ? "heur-miss" : "no-pdf") : via,
+  };
 }

@@ -5,7 +5,7 @@ import { getOpenPaperRef, rememberReaderAttachmentId } from "../rag/paperRef";
 import { getPref } from "../utils/prefs";
 
 let lastSelectionText = "";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 let lastAnnotationParams: any = null;
 
 export function getLastReaderSelection(): string {
@@ -16,12 +16,10 @@ export function setLastReaderSelection(text: string): void {
   lastSelectionText = (text || "").trim();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function setLastAnnotationParams(params: any): void {
   lastAnnotationParams = params || null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getLastAnnotationParams(): any {
   return lastAnnotationParams;
 }
@@ -43,7 +41,6 @@ export function minChars(): number {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function itemKeyFromReader(reader: any): string {
   try {
     const id = reader?.itemID ?? reader?._item?.id;

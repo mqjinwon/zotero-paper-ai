@@ -8,15 +8,11 @@ import { createZoteroFileStore } from "../auth/fileStore";
 import { diag } from "../utils/diagnostics";
 import { setMarkdownHtmlWithCites } from "./markdown";
 // Bundled as text via esbuild loader
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+
 // @ts-expect-error css imported as string
 import katexCssRaw from "katex/dist/katex.min.css";
 
-export type {
-  StickyKind,
-  StickyNote,
-  StickyPdfLocation,
-} from "./sticky/types";
+export type { StickyKind, StickyNote, StickyPdfLocation } from "./sticky/types";
 export {
   STICKY_MIN_W,
   STICKY_MIN_H,
@@ -85,7 +81,9 @@ export async function loadStickies(
     const raw = await store.readText(path);
     const list = JSON.parse(raw) as StickyNote[];
     const notes = dedupeNotes(
-      Array.isArray(list) ? list.filter((n) => n?.id && n.pinned !== false) : [],
+      Array.isArray(list)
+        ? list.filter((n) => n?.id && n.pinned !== false)
+        : [],
     );
     byItem.set(itemKey, notes);
     diag("sticky", "loaded from disk", { itemKey, count: notes.length, path });
@@ -102,14 +100,17 @@ export async function saveStickies(itemKey: string): Promise<void> {
   try {
     const store = createZoteroFileStore();
     const notes = byItem.get(itemKey) || [];
-    await store.writeText(stickyPath(store, itemKey), JSON.stringify(notes, null, 2));
+    await store.writeText(
+      stickyPath(store, itemKey),
+      JSON.stringify(notes, null, 2),
+    );
   } catch (e) {
     diag("sticky", "save fail", String(e));
   }
 }
 
 /** Candidate reader documents (outer shell + nested PDF view). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function readerDocCandidates(reader: any): Document[] {
   const out: Document[] = [];
   const seen = new Set<Document>();
@@ -123,7 +124,9 @@ function readerDocCandidates(reader: any): Document[] {
   try {
     // Nested PDF view first — has [data-page-number] / .page
     push(reader?._internalReader?._primaryView?._iframeWindow?.document);
-    push(reader?._internalReader?._primaryView?._iframe?.contentWindow?.document);
+    push(
+      reader?._internalReader?._primaryView?._iframe?.contentWindow?.document,
+    );
     push(reader?._iframeWindow?.document);
     push(reader?._iframe?.contentWindow?.document);
     push(reader?._window?.document);
@@ -171,7 +174,7 @@ function docHasPdfPages(doc: Document): boolean {
  * works because it lives outside PDF.js — same idea here.
  * Connectors still resolve page anchors across nested docs.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function primaryReaderDoc(reader: any): Document | null {
   const shellFirst: unknown[] = [
     reader?._iframeWindow?.document,
@@ -191,7 +194,7 @@ function primaryReaderDoc(reader: any): Document | null {
 }
 
 /** Remove sticky hosts from non-primary docs (cleanup after older bug). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function cleanupExtraHosts(reader: any, keep: Document | null): void {
   for (const doc of readerDocCandidates(reader)) {
     if (keep && doc === keep) continue;
@@ -203,7 +206,6 @@ function cleanupExtraHosts(reader: any, keep: Document | null): void {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readerDocs(reader: any): Document[] {
   const d = primaryReaderDoc(reader);
   return d ? [d] : [];
@@ -322,7 +324,6 @@ function caretFromPoint(
   x: number,
   y: number,
 ): { node: Node; offset: number } | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const d = doc as any;
   try {
     if (typeof d.caretPositionFromPoint === "function") {
@@ -431,7 +432,6 @@ function protectTextSelection(el: HTMLElement, plainFallback?: string): void {
 function copyTextPrivileged(text: string): boolean {
   if (!text) return false;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = globalThis as any;
     const Cc = g.Cc || g.Components?.classes;
     const Ci = g.Ci || g.Components?.interfaces;
@@ -446,7 +446,6 @@ function copyTextPrivileged(text: string): boolean {
     /* fall through */
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Z = (globalThis as any).Zotero;
     const win = Z?.getMainWindow?.();
     if (win?.navigator?.clipboard?.writeText) {
@@ -462,7 +461,6 @@ function copyTextPrivileged(text: string): boolean {
 async function copyText(_doc: Document, text: string): Promise<void> {
   if (copyTextPrivileged(text)) return;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nav = (_doc.defaultView as any)?.navigator || navigator;
     if (nav?.clipboard?.writeText) {
       await nav.clipboard.writeText(text);
@@ -471,8 +469,6 @@ async function copyText(_doc: Document, text: string): Promise<void> {
     /* ignore */
   }
 }
-
-
 
 function ensureConnectorSvg(host: HTMLElement, doc: Document): SVGSVGElement {
   let svg = host.querySelector(`#${SVG_ID}`) as unknown as SVGSVGElement | null;
@@ -553,9 +549,8 @@ function pdfPointToClient(
     };
   } | null;
   try {
-    const pageView = win?.PDFViewerApplication?.pdfViewer?.getPageView?.(
-      pageIndex,
-    );
+    const pageView =
+      win?.PDFViewerApplication?.pdfViewer?.getPageView?.(pageIndex);
     const viewport = pageView?.viewport;
     const div = pageView?.div;
     if (viewport?.convertToViewportPoint && div) {
@@ -582,15 +577,13 @@ function pdfPointToClient(
   let pdfW = 612;
   let pdfH = 792;
   try {
-    const pageView = win?.PDFViewerApplication?.pdfViewer?.getPageView?.(
-      pageIndex,
-    );
+    const pageView =
+      win?.PDFViewerApplication?.pdfViewer?.getPageView?.(pageIndex);
     const vb = pageView?.viewport?.viewBox as number[] | undefined;
     if (vb && vb.length >= 4) {
       pdfW = Math.max(1, (vb[2] ?? 612) - (vb[0] ?? 0));
       pdfH = Math.max(1, (vb[3] ?? 792) - (vb[1] ?? 0));
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = (pageView as any)?.pdfPage?.view as number[] | undefined;
       if (raw && raw.length >= 4) {
         pdfW = Math.max(1, raw[2]! - raw[0]!);
@@ -635,7 +628,7 @@ export function sortStickiesByPaperOrder(notes: StickyNote[]): StickyNote[] {
  * Live screen point for the quoted region (recomputed every draw so scroll works).
  * Always recompute from PDF page/rects — never trust stale quoteAnchor alone after scroll.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function resolveQuoteAnchor(
   doc: Document,
   note: StickyNote,
@@ -673,10 +666,7 @@ function resolveQuoteAnchor(
               pdfViewer?: {
                 getPageView?: (i: number) => {
                   viewport?: {
-                    convertToViewportPoint: (
-                      x: number,
-                      y: number,
-                    ) => number[];
+                    convertToViewportPoint: (x: number, y: number) => number[];
                   };
                   div?: HTMLElement;
                 };
@@ -738,7 +728,12 @@ function resolveQuoteAnchor(
     for (const d of docs) {
       if (d === doc) continue;
       if (docHasPdfPages(d)) {
-        return mapClientPointToDoc(d, doc, note.quoteAnchor.x, note.quoteAnchor.y);
+        return mapClientPointToDoc(
+          d,
+          doc,
+          note.quoteAnchor.x,
+          note.quoteAnchor.y,
+        );
       }
     }
     return note.quoteAnchor;
@@ -750,7 +745,7 @@ function resolveQuoteAnchor(
  * Clear previous region boxes painted inside PDF page divs.
  * Regions live ON the page (not shell SVG) so left/right panels can't desync them.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function clearPdfRegionBoxes(reader: any, noteIds?: Set<string>): void {
   try {
     for (const d of readerDocCandidates(reader)) {
@@ -780,7 +775,7 @@ function drawRegionOutline(
   _hostDoc: Document,
   _svg: SVGSVGElement,
   note: StickyNote,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader: any,
   color: string,
   _NS: string,
@@ -886,9 +881,8 @@ function mapClientPointToDoc(
 ): { x: number; y: number } {
   if (fromDoc === toDoc) return { x, y };
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fromWin = fromDoc.defaultView as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const toWin = toDoc.defaultView as any;
     if (fromWin && toWin) {
       const fsx = fromWin.mozInnerScreenX;
@@ -938,7 +932,7 @@ function redrawConnectors(
   doc: Document,
   host: HTMLElement,
   notes: StickyNote[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader: any,
 ): void {
   const svg = ensureConnectorSvg(host, doc);
@@ -1043,8 +1037,9 @@ function redrawConnectors(
       skippedNoCard,
       skippedNoAnchor,
       pages: doc.querySelectorAll("[data-page-number], .page").length,
-      hasPdfApp: !!(doc.defaultView as unknown as { PDFViewerApplication?: unknown })
-        ?.PDFViewerApplication,
+      hasPdfApp: !!(
+        doc.defaultView as unknown as { PDFViewerApplication?: unknown }
+      )?.PDFViewerApplication,
     });
   }
 }
@@ -1059,13 +1054,12 @@ const RAF_HOOK = "__paperaiConnectorRaf";
  * - PDF scroll / zoom / rotate (nested iframe + PDF.js eventBus)
  * - window resize
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function installConnectorScrollHook(
   hostDoc: Document,
   reader: any,
   redraw: () => void,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const root = hostDoc as any;
   // Always refresh the active redraw fn (remounts swap closures)
   root[SCROLL_HOOK] = redraw;
@@ -1139,14 +1133,16 @@ function installConnectorScrollHook(
     on(viewer, "scroll", true);
     // PDF.js view updates (scroll/zoom) — critical for nested iframe sync
     try {
-      const app = (d.defaultView as unknown as {
-        PDFViewerApplication?: {
-          eventBus?: {
-            on?: (name: string, fn: () => void) => void;
-            off?: (name: string, fn: () => void) => void;
+      const app = (
+        d.defaultView as unknown as {
+          PDFViewerApplication?: {
+            eventBus?: {
+              on?: (name: string, fn: () => void) => void;
+              off?: (name: string, fn: () => void) => void;
+            };
           };
-        };
-      })?.PDFViewerApplication;
+        }
+      )?.PDFViewerApplication;
       const bus = app?.eventBus;
       if (bus?.on) {
         for (const ev of [
@@ -1240,11 +1236,7 @@ function installConnectorScrollHook(
   };
 }
 
-async function navigateToNote(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  reader: any,
-  note: StickyNote,
-): Promise<void> {
+async function navigateToNote(reader: any, note: StickyNote): Promise<void> {
   try {
     const loc = note.pdfLocation;
     if (reader?.navigate) {
@@ -1263,11 +1255,10 @@ async function navigateToNote(
   }
 }
 
-
 function renderCard(
   doc: Document,
   note: StickyNote,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader: any,
   onClose: () => void,
   onMoved: () => void,
@@ -1533,10 +1524,7 @@ function renderCard(
         text = (body.innerText || body.textContent || note.answer || "").trim();
       }
       if (!text) {
-        text = [
-          note.quote ? `인용: ${note.quote}` : "",
-          note.answer || "",
-        ]
+        text = [note.quote ? `인용: ${note.quote}` : "", note.answer || ""]
           .filter(Boolean)
           .join("\n\n");
       }
@@ -1757,7 +1745,6 @@ let mountKey = "";
  * Always reloads from disk so re-opening the PDF restores notes.
  */
 export async function mountStickiesForReader(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader: any,
   itemKey: string,
   opts?: { forceReload?: boolean },
@@ -1822,8 +1809,9 @@ export async function mountStickiesForReader(
       count: seen.size,
       hostCards: host.querySelectorAll(`[${CARD_ATTR}]`).length,
       pages: doc.querySelectorAll("[data-page-number], .page").length,
-      hasPdfApp: !!(doc.defaultView as unknown as { PDFViewerApplication?: unknown })
-        ?.PDFViewerApplication,
+      hasPdfApp: !!(
+        doc.defaultView as unknown as { PDFViewerApplication?: unknown }
+      )?.PDFViewerApplication,
       svgKids: host.querySelector(`#${SVG_ID}`)?.childElementCount ?? 0,
     });
   } catch (e) {
@@ -1843,7 +1831,7 @@ export async function setStickyCollapsed(
   itemKey: string,
   id: string,
   collapsed: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
 ): Promise<void> {
   const list = await loadStickies(itemKey);
@@ -1859,7 +1847,7 @@ export async function setStickyCollapsed(
 export async function focusSticky(
   itemKey: string,
   id: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
 ): Promise<void> {
   const list = await loadStickies(itemKey);
@@ -1897,7 +1885,7 @@ export async function focusSticky(
 export async function setAllStickiesCollapsed(
   itemKey: string,
   collapsed: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
 ): Promise<void> {
   const list = await loadStickies(itemKey);
@@ -1914,12 +1902,11 @@ export function startStickyWatcher(): void {
   if (watcher) return;
   watcher = setInterval(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const Z = (globalThis as any).Zotero;
       if (!Z?.Reader) return;
       const win = Z.getMainWindow?.() || globalThis;
       const tabs = win.Zotero_Tabs;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       let reader: any =
         (tabs?.selectedID && Z.Reader.getByTabID?.(tabs.selectedID)) || null;
       if (!reader && Z.Reader._readers?.length) {
@@ -1979,7 +1966,7 @@ export async function upsertSticky(
     createdAt?: string;
     pinned?: boolean;
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
 ): Promise<StickyNote> {
   const itemKey = note.itemKey;
@@ -2027,7 +2014,6 @@ export async function upsertSticky(
   else {
     // try any open reader
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const Z = (globalThis as any).Zotero;
       const r =
         Z?.Reader?.getByTabID?.(
@@ -2048,7 +2034,7 @@ export async function updateStickyAnswer(
   itemKey: string,
   id: string,
   answer: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
   opts?: { final?: boolean },
 ): Promise<void> {
@@ -2104,7 +2090,7 @@ export async function updateStickyAnswer(
 export async function dismissSticky(
   itemKey: string,
   id: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
 ): Promise<void> {
   const list = (await loadStickies(itemKey)).filter((n) => n.id !== id);
@@ -2114,7 +2100,6 @@ export async function dismissSticky(
   else {
     // remove from any open docs
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const Z = (globalThis as any).Zotero;
       for (const r of Z?.Reader?._readers || []) {
         for (const doc of readerDocs(r)) {
@@ -2132,9 +2117,8 @@ export async function dismissSticky(
  * Best-effort card position + PDF location + quote screen anchor.
  */
 export function positionFromAnnotationParams(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader: any,
 ): {
   x: number;
@@ -2212,16 +2196,14 @@ export function nextCascadeOffset(itemKey: string): number {
  * Best-effort — sticky UI still works if this fails.
  */
 export async function saveAsPdfAnnotation(opts: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader: any;
   quote: string;
   answer: string;
   kind: StickyKind;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   annotationParams?: any;
 }): Promise<boolean> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Z = (globalThis as any).Zotero;
     const item =
       opts.reader?._item ||
@@ -2248,7 +2230,7 @@ export async function saveAsPdfAnnotation(opts: {
       position: pos,
       tags: [{ name: "paper-ai", color: "" }],
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     await Z.Annotations.saveFromJSON(item, json as any, { skipSelect: true });
     diag("sticky", "saved annotation", { kind: opts.kind });
     return true;

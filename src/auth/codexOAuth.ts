@@ -5,11 +5,7 @@
 
 import type { FileStore } from "./fileStore";
 import { jwtAccountId, jwtExp } from "./jwt";
-import {
-  cacheKey,
-  getCachedToken,
-  setCachedToken,
-} from "./tokenCache";
+import { cacheKey, getCachedToken, setCachedToken } from "./tokenCache";
 
 export const CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 export const CODEX_TOKEN_URL = "https://auth.openai.com/oauth/token";
@@ -90,7 +86,9 @@ export async function saveCodexCredentials(
   if (creds.accountId) tokens.account_id = creds.accountId;
   if (creds.idToken) tokens.id_token = creds.idToken;
   data.tokens = tokens;
-  data.last_refresh = new Date().toISOString().replace(/\.\d{3}Z$/, ".000000000Z");
+  data.last_refresh = new Date()
+    .toISOString()
+    .replace(/\.\d{3}Z$/, ".000000000Z");
   await store.writeText(path, JSON.stringify(data, null, 2));
 }
 
@@ -137,7 +135,7 @@ export async function refreshCodexCredentials(
     accountId,
     idToken: payload.id_token
       ? String(payload.id_token)
-      : creds.idToken ?? null,
+      : (creds.idToken ?? null),
     raw: creds.raw,
   };
 }
@@ -208,12 +206,9 @@ export async function getCodexCredentials(
       fetchImpl: opts?.fetchImpl,
     });
     await saveCodexCredentials(store, refreshed, path);
-    setCachedToken(
-      key,
-      refreshed.accessToken,
-      jwtExp(refreshed.accessToken),
-      { accountId: refreshed.accountId },
-    );
+    setCachedToken(key, refreshed.accessToken, jwtExp(refreshed.accessToken), {
+      accountId: refreshed.accountId,
+    });
     return refreshed;
   });
 }

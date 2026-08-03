@@ -4,11 +4,7 @@
  */
 
 import type { FileStore } from "./fileStore";
-import {
-  cacheKey,
-  getCachedToken,
-  setCachedToken,
-} from "./tokenCache";
+import { cacheKey, getCachedToken, setCachedToken } from "./tokenCache";
 
 export const DEFAULT_OIDC_ISSUER = "https://auth.x.ai";
 export const DEFAULT_TOKEN_URL = "https://auth.x.ai/oauth2/token";
@@ -223,8 +219,7 @@ export async function getGrokAccessToken(
 
   let creds = await loadGrokCredentials(store, path);
   const now = Date.now() / 1000;
-  const fresh =
-    creds.expiresAt === null || creds.expiresAt - now > minTtl;
+  const fresh = creds.expiresAt === null || creds.expiresAt - now > minTtl;
   if (!forceRefresh && fresh) {
     setCachedToken(key, creds.accessToken, creds.expiresAt);
     return creds.accessToken;
@@ -238,8 +233,7 @@ export async function getGrokAccessToken(
 
     creds = await loadGrokCredentials(store, path);
     const now2 = Date.now() / 1000;
-    const fresh2 =
-      creds.expiresAt === null || creds.expiresAt - now2 > minTtl;
+    const fresh2 = creds.expiresAt === null || creds.expiresAt - now2 > minTtl;
     if (!forceRefresh && fresh2) {
       setCachedToken(key, creds.accessToken, creds.expiresAt);
       return creds.accessToken;

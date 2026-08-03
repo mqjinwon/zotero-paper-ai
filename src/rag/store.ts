@@ -102,7 +102,7 @@ export function simpleHash(text: string): string {
     h = Math.imul(h, 0x01000193);
   }
   return (
-    (`00000000${(h >>> 0).toString(16)}`).slice(-8) + text.length.toString(16)
+    `00000000${(h >>> 0).toString(16)}`.slice(-8) + text.length.toString(16)
   );
 }
 

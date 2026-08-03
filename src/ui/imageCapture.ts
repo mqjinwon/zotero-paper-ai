@@ -47,10 +47,8 @@ export interface CaptureResult {
 export type { FigureMention } from "./figureContext";
 export { extractFigureMentions } from "./figureContext";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getSelectedReaderAny(): any {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Z = (globalThis as any).Zotero;
     const win = Z?.getMainWindow?.() || globalThis;
     const tabs = win.Zotero_Tabs || (globalThis as any).Zotero_Tabs;
@@ -67,7 +65,6 @@ function getSelectedReaderAny(): any {
   return null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function readerContentWindows(reader: any): Window[] {
   const wins: Window[] = [];
   const push = (w: unknown) => {
@@ -115,7 +112,6 @@ function findPageCanvas(doc: Document): HTMLCanvasElement | null {
  * Does NOT capture the full page.
  */
 function tryCanvasSelectionDataUrl(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   win: any,
   canvas: HTMLCanvasElement,
 ): string | null {
@@ -166,16 +162,16 @@ function isImageAnnotationItem(ann: {
   getField?: (k: string) => unknown;
 }): boolean {
   try {
-    if (typeof ann.isImageAnnotation === "function" && ann.isImageAnnotation()) {
+    if (
+      typeof ann.isImageAnnotation === "function" &&
+      ann.isImageAnnotation()
+    ) {
       return true;
     }
   } catch {
     /* ignore */
   }
-  const type =
-    ann.annotationType ??
-    ann.getField?.("annotationType") ??
-    "";
+  const type = ann.annotationType ?? ann.getField?.("annotationType") ?? "";
   // Zotero: string "image"|"ink" or numeric ANNOTATION_TYPE_IMAGE=3 / INK=4
   if (type === 3 || type === 4) return true;
   return /image|ink/i.test(String(type));
@@ -186,21 +182,15 @@ function isImageAnnotationItem(ann: {
  * Official path: Zotero.Annotations.toJSON → cache file (NOT getImageDataURL).
  */
 export async function imagePayloadFromAnnotationItem(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ann: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
 ): Promise<ImagePayload | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Z = (globalThis as any).Zotero;
   const key = String(ann?.key || ann?.id || "");
 
   // 0) In-memory data URL (reader JSON while still open)
-  for (const cand of [
-    ann?.image,
-    ann?.annotationImageDataURL,
-    ann?._image,
-  ]) {
+  for (const cand of [ann?.image, ann?.annotationImageDataURL, ann?._image]) {
     if (typeof cand === "string" && cand.startsWith("data:")) {
       const p = dataUrlToImagePayload(cand);
       if (p?.base64) {
@@ -231,7 +221,11 @@ export async function imagePayloadFromAnnotationItem(
 
   // 2) Cache path: ~/.zotero/.../cache/library/{key}.png
   try {
-    if (Z?.Annotations?.getCacheImagePath && ann?.libraryID != null && ann?.key) {
+    if (
+      Z?.Annotations?.getCacheImagePath &&
+      ann?.libraryID != null &&
+      ann?.key
+    ) {
       const path = Z.Annotations.getCacheImagePath({
         libraryID: ann.libraryID,
         key: ann.key,
@@ -250,7 +244,10 @@ export async function imagePayloadFromAnnotationItem(
 
   // 3) Crop rendered annotation box from PDF canvas (DOM)
   try {
-    const crop = cropAnnotationFromReaderDom(reader || getSelectedReaderAny(), key);
+    const crop = cropAnnotationFromReaderDom(
+      reader || getSelectedReaderAny(),
+      key,
+    );
     if (crop?.base64) {
       diag("figure", "image from DOM crop", { key, bytes: crop.base64.length });
       return crop;
@@ -293,7 +290,6 @@ export async function imagePayloadFromAnnotationItem(
 
 /** Crop the on-screen annotation element ([data-annotation-id]) from page canvas. */
 function cropAnnotationFromReaderDom(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader: any,
   annotationId: string,
 ): ImagePayload | null {
@@ -327,7 +323,6 @@ function cropAnnotationFromReaderDom(
   }
   // Reader in-memory map
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const view: any =
       reader?._internalReader?._primaryView ||
       reader?._internalReader?._views?.[0];
@@ -385,7 +380,6 @@ function cropClientRectFromCanvas(
  * Best-effort mapping via page element size (works for typical Zotero scale).
  */
 function cropRectsFromReader(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader: any,
   pageIndex: number,
   rects: number[][],
@@ -463,12 +457,10 @@ export async function listImageAnnotations(): Promise<
 > {
   const out: Array<{ key: string; label: string; image: ImagePayload }> = [];
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Z = (globalThis as any).Zotero;
     const reader = getSelectedReaderAny();
     const item =
-      reader?._item ||
-      (reader?.itemID ? Z.Items.get(reader.itemID) : null);
+      reader?._item || (reader?.itemID ? Z.Items.get(reader.itemID) : null);
     if (!item) {
       diag("figure", "no item for annotations");
       return out;
@@ -569,13 +561,16 @@ export async function capturePreciseFigure(opts?: {
   return null;
 }
 
-async function readPathAsImagePayload(path: string): Promise<ImagePayload | null> {
+async function readPathAsImagePayload(
+  path: string,
+): Promise<ImagePayload | null> {
   if (!path) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const g = globalThis as any;
   const lower = String(path).toLowerCase();
   let mimeType = "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) mimeType = "image/jpeg";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg"))
+    mimeType = "image/jpeg";
   else if (lower.endsWith(".webp")) mimeType = "image/webp";
 
   try {
@@ -611,7 +606,6 @@ async function readPathAsImagePayload(path: string): Promise<ImagePayload | null
 
 export async function pickImageFileAsPayload(): Promise<ImagePayload | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ztoolkit = (globalThis as any).ztoolkit;
     if (ztoolkit?.FilePicker) {
       const path = await new ztoolkit.FilePicker(
@@ -629,7 +623,6 @@ export async function pickImageFileAsPayload(): Promise<ImagePayload | null> {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = globalThis as any;
     const Cc = g.Cc || g.Components?.classes;
     const Ci = g.Ci || g.Components?.interfaces;
@@ -670,11 +663,11 @@ export async function pickImageFileAsPayload(): Promise<ImagePayload | null> {
  */
 export async function captureAnnotationByKey(
   annotationKey: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   reader?: any,
 ): Promise<CaptureResult | null> {
   if (!annotationKey) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const Z = (globalThis as any).Zotero;
   const r = reader || getSelectedReaderAny();
 
@@ -696,8 +689,7 @@ export async function captureAnnotationByKey(
   }
 
   try {
-    const item =
-      r?._item || (r?.itemID != null ? Z.Items.get(r.itemID) : null);
+    const item = r?._item || (r?.itemID != null ? Z.Items.get(r.itemID) : null);
     if (item?.id) rememberReaderAttachmentId(item.id);
 
     // Resolve annotation item by key
@@ -718,12 +710,12 @@ export async function captureAnnotationByKey(
     if (ann) {
       const image = await imagePayloadFromAnnotationItem(ann, r);
       if (image?.base64) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const a = ann as any;
         const label = String(
           a.annotationComment || a.annotationText || "선택 영역",
         ).slice(0, 80);
-        const loc = locationFromAnnotationItem(a) ||
+        const loc =
+          locationFromAnnotationItem(a) ||
           annotationLocationFromReader(r, annotationKey);
         return {
           image,
@@ -757,14 +749,14 @@ export async function captureAnnotationByKey(
 }
 
 /** Parse pageIndex / rects / pageLabel from a Zotero annotation item. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function locationFromAnnotationItem(ann: any): {
   pageLabel?: string;
   pageIndex?: number;
   rects?: number[][];
 } {
   if (!ann) return {};
-  let pageLabel =
+  const pageLabel =
     ann.annotationPageLabel != null
       ? String(ann.annotationPageLabel)
       : ann.pageLabel != null
@@ -798,7 +790,7 @@ export function locationFromAnnotationItem(ann: any): {
 /**
  * Best-effort location from live reader annotation map / DOM.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function annotationLocationFromReader(
   reader: any,
   annotationKey: string,
@@ -810,7 +802,6 @@ export function annotationLocationFromReader(
 } {
   if (!reader || !annotationKey) return {};
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const view: any =
       reader?._internalReader?._primaryView ||
       reader?._internalReader?._views?.[0];
@@ -874,12 +865,7 @@ function clientBoxToPdfLocation(
   let pageIndex = 0;
   for (const p of pages) {
     const pr = p.getBoundingClientRect();
-    if (
-      cx >= pr.left &&
-      cx <= pr.right &&
-      cy >= pr.top &&
-      cy <= pr.bottom
-    ) {
+    if (cx >= pr.left && cx <= pr.right && cy >= pr.top && cy <= pr.bottom) {
       page = p;
       const n = parseInt(p.getAttribute("data-page-number") || "", 10);
       pageIndex = Number.isFinite(n) && n > 0 ? n - 1 : pages.indexOf(p);
@@ -906,9 +892,8 @@ function clientBoxToPdfLocation(
   } | null;
 
   try {
-    const pageView = win?.PDFViewerApplication?.pdfViewer?.getPageView?.(
-      pageIndex,
-    );
+    const pageView =
+      win?.PDFViewerApplication?.pdfViewer?.getPageView?.(pageIndex);
     const viewport = pageView?.viewport as
       | {
           convertToPdfPoint?: (x: number, y: number) => number[];
@@ -942,13 +927,9 @@ function clientBoxToPdfLocation(
       // Fallback: invert convertToViewportPoint via viewBox scale
       const vb = viewport.viewBox;
       const pdfW =
-        vb && vb.length >= 4
-          ? Math.max(1, (vb[2] ?? 612) - (vb[0] ?? 0))
-          : 612;
+        vb && vb.length >= 4 ? Math.max(1, (vb[2] ?? 612) - (vb[0] ?? 0)) : 612;
       const pdfH =
-        vb && vb.length >= 4
-          ? Math.max(1, (vb[3] ?? 792) - (vb[1] ?? 0))
-          : 792;
+        vb && vb.length >= 4 ? Math.max(1, (vb[3] ?? 792) - (vb[1] ?? 0)) : 792;
       const vw = Math.max(1, viewport.width || pr.width);
       const vh = Math.max(1, viewport.height || pr.height);
       // Viewport y grows downward; PDF y grows upward
@@ -1006,7 +987,6 @@ function clientBoxToPdfLocation(
  * User drags a box; we crop that region and never return a full page.
  */
 export async function beginAreaSelectCapture(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   reader?: any,
 ): Promise<CaptureResult | null> {
   const r = reader || getSelectedReaderAny();

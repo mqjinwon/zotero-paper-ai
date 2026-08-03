@@ -94,9 +94,8 @@ See Figure 1 for overview.
   });
 
   it("buildFigureContextBundle pulls captions and body discussion", async () => {
-    const { buildFigureContextBundle, mergeFigureEvidence } = await import(
-      "../../src/ui/figureContext.ts"
-    );
+    const { buildFigureContextBundle, mergeFigureEvidence } =
+      await import("../../src/ui/figureContext.ts");
     const text = `
 Figure 1. Architecture of residual MPC.
 
@@ -109,7 +108,9 @@ Figure 1 illustrates the control stack with convex MPC.
 3 Results
 Compared to baseline, Figure 1 shows higher success on stairs.
 `;
-    const b = buildFigureContextBundle(text, { userQuestion: "what is fig 1?" });
+    const b = buildFigureContextBundle(text, {
+      userQuestion: "what is fig 1?",
+    });
     assert.ok(b.mentions.length >= 1);
     assert.ok(b.relatedParagraphs.length >= 1);
     assert.match(b.directBlock, /Figure 1/i);

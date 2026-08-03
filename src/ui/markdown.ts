@@ -38,10 +38,14 @@ function renderKatex(tex: string, displayMode: boolean): string {
 
 /** Scrub source text only (null / broken surrogates). Never run on finished HTML. */
 export function scrubIllegalChars(s: string): string {
-  return String(s || "")
-    .replace(/\u0000/g, "")
-    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "\uFFFD")
-    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD");
+  return (
+    String(s || "")
+      // strip NULs without a control-char regex (eslint no-control-regex)
+      .split("\0")
+      .join("")
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "\uFFFD")
+      .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD")
+  );
 }
 
 /**
@@ -75,7 +79,10 @@ export function renderMarkdown(md: string): string {
       .replace(/>/g, "&gt;");
     return `<pre class="pai-md-fallback">${esc}</pre>`;
   }
-  html = html.replace(/@@MATH_BLOCK_(\d+)@@/g, (_m, i) => blocks[Number(i)] || "");
+  html = html.replace(
+    /@@MATH_BLOCK_(\d+)@@/g,
+    (_m, i) => blocks[Number(i)] || "",
+  );
   html = html.replace(
     /@@MATH_INLINE_(\d+)@@/g,
     (_m, i) => inlines[Number(i)] || "",
@@ -111,10 +118,7 @@ export function setMarkdownHtml(host: HTMLElement, md: string): boolean {
   // 1) DOMParser (most reliable in Zotero chrome / XUL hybrid docs)
   try {
     const win = doc.defaultView;
-    const DOMParserCtor =
-      win?.DOMParser ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).DOMParser;
+    const DOMParserCtor = win?.DOMParser || (globalThis as any).DOMParser;
     if (DOMParserCtor) {
       const parser = new DOMParserCtor();
       const parsed = parser.parseFromString(
@@ -129,7 +133,9 @@ export function setMarkdownHtml(host: HTMLElement, md: string): boolean {
           if (child) host.appendChild(doc.importNode(child, true));
         }
         // Heuristic: structured MD should introduce element nodes (p, table, …)
-        if (host.querySelector("p, table, ul, ol, h1, h2, h3, h4, pre, strong, a")) {
+        if (
+          host.querySelector("p, table, ul, ol, h1, h2, h3, h4, pre, strong, a")
+        ) {
           return true;
         }
         // import produced only text — treat as soft failure and retry below
@@ -146,7 +152,9 @@ export function setMarkdownHtml(host: HTMLElement, md: string): boolean {
     box.innerHTML = html;
     if (box.childNodes.length) {
       while (box.firstChild) host.appendChild(box.firstChild);
-      if (host.querySelector("p, table, ul, ol, h1, h2, h3, h4, pre, strong, a")) {
+      if (
+        host.querySelector("p, table, ul, ol, h1, h2, h3, h4, pre, strong, a")
+      ) {
         return true;
       }
       while (host.firstChild) host.removeChild(host.firstChild);
@@ -172,9 +180,7 @@ export function setMarkdownHtml(host: HTMLElement, md: string): boolean {
 
 // ── Cite navigation ─────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function resolveZotero(): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = globalThis as any;
   if (g.Zotero) return g.Zotero;
   try {
@@ -194,11 +200,10 @@ function resolveZotero(): any {
 }
 
 /** Unwrap Xray wrappers so PDF.js methods are callable from chrome. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function unwrap(obj: any): any {
   if (!obj) return obj;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cu = (globalThis as any).Cu || (globalThis as any).Components?.utils;
     if (Cu?.waiveXrays) return Cu.waiveXrays(obj);
   } catch {
@@ -211,14 +216,12 @@ function unwrap(obj: any): any {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function collectReaders(Z: any): any[] {
   const out: unknown[] = [];
   try {
     const main = Z?.getMainWindow?.() || null;
     const tabId =
       main?.Zotero_Tabs?.selectedID ??
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (globalThis as any).Zotero_Tabs?.selectedID;
     if (tabId != null && Z?.Reader?.getByTabID) {
       const r = Z.Reader.getByTabID(tabId);
@@ -237,7 +240,6 @@ function collectReaders(Z: any): any[] {
   return out;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function windowsFromReader(reader: any): Window[] {
   const wins: Window[] = [];
   const push = (w: unknown) => {
@@ -263,12 +265,13 @@ function windowsFromReader(reader: any): Window[] {
   return wins;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function pdfAppFromWindow(w: Window | null | undefined): any {
   if (!w) return null;
   try {
     const raw = unwrap(w);
-    const app = raw?.PDFViewerApplication || (w as unknown as { PDFViewerApplication?: unknown }).PDFViewerApplication;
+    const app =
+      raw?.PDFViewerApplication ||
+      (w as unknown as { PDFViewerApplication?: unknown }).PDFViewerApplication;
     return unwrap(app) || app || null;
   } catch {
     return null;
@@ -276,7 +279,7 @@ function pdfAppFromWindow(w: Window | null | undefined): any {
 }
 
 /** Jump PDF.js to 1-based page number. Returns true only if page actually changes or matches. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 function pdfJsGoToPage(app: any, pageLabel: number): boolean {
   if (!app || !Number.isFinite(pageLabel) || pageLabel < 1) return false;
   const n = Math.floor(pageLabel);
@@ -378,14 +381,17 @@ export async function navigateReaderToPage(
   // 3) Text search → page
   if (preview && preview.length >= 8) {
     const words = preview
-      .replace(/[^\w\s.,;:%\-]/g, " ")
+      .replace(/[^\w\s.,;:%-]/g, " ")
       .replace(/\s+/g, " ")
       .trim()
       .split(" ")
       .filter((w) => w.length > 2);
     const needle = (
       words.length >= 4
-        ? words.slice(Math.min(3, words.length - 6), Math.min(3, words.length - 6) + 8)
+        ? words.slice(
+            Math.min(3, words.length - 6),
+            Math.min(3, words.length - 6) + 8,
+          )
         : words
     )
       .join(" ")
@@ -493,7 +499,6 @@ export function handleCiteClick(ev: Event, root?: HTMLElement | null): boolean {
   ev.preventDefault();
   ev.stopPropagation();
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (ev as any).stopImmediatePropagation?.();
   } catch {
     /* ignore */
@@ -522,7 +527,6 @@ export function handleCiteClick(ev: Event, root?: HTMLElement | null): boolean {
 export function wirePaperaiCiteLinks(host: HTMLElement): void {
   if (!host) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const h = host as any;
   if (!h.__paperaiCiteDelegated) {
     h.__paperaiCiteDelegated = true;
@@ -551,7 +555,10 @@ export function wirePaperaiCiteLinks(host: HTMLElement): void {
 }
 
 /** setMarkdownHtml + wire cite links. */
-export function setMarkdownHtmlWithCites(host: HTMLElement, md: string): boolean {
+export function setMarkdownHtmlWithCites(
+  host: HTMLElement,
+  md: string,
+): boolean {
   const ok = setMarkdownHtml(host, md);
   try {
     wirePaperaiCiteLinks(host);

@@ -89,7 +89,11 @@ function showPopup(
   (hostDoc.body || hostDoc.documentElement)!.appendChild(popup);
 }
 
-function handleSelectionEvent(iframeWin: Window, clientX?: number, clientY?: number): void {
+function handleSelectionEvent(
+  iframeWin: Window,
+  clientX?: number,
+  clientY?: number,
+): void {
   const text = (() => {
     try {
       const t = iframeWin.getSelection?.()?.toString?.()?.trim() || "";
@@ -124,9 +128,9 @@ function handleSelectionEvent(iframeWin: Window, clientX?: number, clientY?: num
     } | null;
     const iframe =
       reader?._iframe ||
-      (hostDoc.querySelector("#reader-view iframe, browser[type='content']") as
-        | HTMLIFrameElement
-        | null);
+      (hostDoc.querySelector(
+        "#reader-view iframe, browser[type='content']",
+      ) as HTMLIFrameElement | null);
     if (iframe?.getBoundingClientRect) {
       const r = iframe.getBoundingClientRect();
       hx = r.left + x;

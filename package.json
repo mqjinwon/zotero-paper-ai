@@ -33,6 +33,7 @@
     "test:rag": "tsx --test test/node/rag.test.ts",
     "test:panel": "tsx --test test/node/panelDom.test.ts",
     "test:node": "tsx --test test/node/*.test.ts",
+    "ci:test": "npm run test:node",
     "deploy:local": "bash scripts/deploy-local.sh",
     "smoke:auth": "tsx scripts/smoke-auth.ts",
     "update-deps": "npm update --save"

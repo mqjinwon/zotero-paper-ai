@@ -51,7 +51,6 @@ export async function softFileLock<T>(
  * PathUtils.homeDir is NOT available on Zotero 9's PathUtils typings/runtime.
  */
 export function resolveZoteroHomeDir(): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = globalThis as any;
 
   const pathUtils = g.PathUtils;
@@ -71,9 +70,10 @@ export function resolveZoteroHomeDir(): string {
 
   // Services.dirsvc (Firefox / Zotero chrome)
   try {
-    const Services = g.Services || g.ChromeUtils?.importESModule?.(
-      "resource://gre/modules/Services.sys.mjs",
-    )?.Services;
+    const Services =
+      g.Services ||
+      g.ChromeUtils?.importESModule?.("resource://gre/modules/Services.sys.mjs")
+        ?.Services;
     const Ci = g.Ci || g.Components?.interfaces;
     if (Services?.dirsvc && Ci?.nsIFile) {
       const f = Services.dirsvc.get("Home", Ci.nsIFile);
@@ -118,7 +118,9 @@ export function resolveZoteroHomeDir(): string {
       if (parts.length >= 3 && /users/i.test(parts[1] || parts[0] || "")) {
         const idx = parts.findIndex((p: string) => /users/i.test(p));
         if (idx >= 0 && parts[idx + 1]) {
-          return parts.slice(0, idx + 2).join(dataDir.includes("\\") ? "\\" : "/");
+          return parts
+            .slice(0, idx + 2)
+            .join(dataDir.includes("\\") ? "\\" : "/");
         }
       }
     }
@@ -147,7 +149,6 @@ export function resolveZoteroHomeDir(): string {
  * Zotero / Firefox FileStore using IOUtils + PathUtils.
  */
 export function createZoteroFileStore(): FileStore {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = globalThis as any;
   const IOUtils = g.IOUtils;
   const PathUtils = g.PathUtils;
@@ -182,7 +183,8 @@ export function createZoteroFileStore(): FileStore {
     async writeText(p: string, data: string) {
       const path = resolvePath(p);
       const parent = PathUtils.parent(path);
-      if (parent) await IOUtils.makeDirectory(parent, { createAncestors: true });
+      if (parent)
+        await IOUtils.makeDirectory(parent, { createAncestors: true });
       const tmp = `${path}.tmp`;
       await IOUtils.writeUTF8(tmp, data);
       await IOUtils.move(tmp, path, { noOverwrite: false });
@@ -190,7 +192,8 @@ export function createZoteroFileStore(): FileStore {
     async withLock<T>(lockPath: string, fn: () => Promise<T>) {
       const path = resolvePath(lockPath);
       const parent = PathUtils.parent(path);
-      if (parent) await IOUtils.makeDirectory(parent, { createAncestors: true });
+      if (parent)
+        await IOUtils.makeDirectory(parent, { createAncestors: true });
       return softFileLock(
         path,
         async (lp) => {

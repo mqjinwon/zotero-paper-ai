@@ -3,11 +3,7 @@
  * OpenAI vision / xAI Grok chat.completions image_url format.
  */
 
-import type {
-  ChatMessage,
-  ContentPart,
-  ImagePayload,
-} from "./types";
+import type { ChatMessage, ContentPart, ImagePayload } from "./types";
 import {
   buildSystemPrompt,
   buildUserPayload,

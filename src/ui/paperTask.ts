@@ -18,11 +18,7 @@ import {
 import { getOpenPaperRef, type OpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
 import type { ExtractInput } from "../rag/extract";
-import type {
-  ExtractedDoc,
-  RagPrefs,
-  RetrievedEvidence,
-} from "../rag/types";
+import type { ExtractedDoc, RagPrefs, RetrievedEvidence } from "../rag/types";
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -185,8 +181,7 @@ export async function runPaperTask(
     };
   }
 
-  const qText =
-    question || selection || defaultQueryForMode(mode);
+  const qText = question || selection || defaultQueryForMode(mode);
 
   const prefetched = (input.prefetchedContext || "").trim();
   const rag = prefetched
@@ -223,9 +218,7 @@ export async function runPaperTask(
         : undefined,
     context: rag.contextBlock || undefined,
     question:
-      mode === "chat" || isVisionMode(mode)
-        ? question || undefined
-        : undefined,
+      mode === "chat" || isVisionMode(mode) ? question || undefined : undefined,
     image: input.image,
     history: mode === "chat" ? input.history : undefined,
     onDelta: input.onDelta,
@@ -289,7 +282,9 @@ export function formatUserVisible(
     if (selection) lines.push(`· PDF 선택/캡션:\n${selection.slice(0, 500)}`);
     if (question) lines.push(`· 질문: ${question}`);
     if (opts.figureHints?.length) {
-      lines.push(`· 논문 내 figure 언급: ${opts.figureHints.slice(0, 5).join("; ")}`);
+      lines.push(
+        `· 논문 내 figure 언급: ${opts.figureHints.slice(0, 5).join("; ")}`,
+      );
     }
     if (!question && !selection) {
       lines.push("· (현재 페이지/선택 영역 이미지 기준 설명)");

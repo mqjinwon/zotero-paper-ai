@@ -114,15 +114,21 @@ export async function consumeCodexSSE(
     throw new Error("Codex response has no body");
   }
   const reader = (resp.body as ReadableStream<Uint8Array>).getReader();
-  const decoder: { decode: (i?: BufferSource, o?: { stream?: boolean }) => string } =
-    new (globalThis as unknown as { TextDecoder: new (label?: string) => {
-      decode: (i?: BufferSource, o?: { stream?: boolean }) => string;
-    } }).TextDecoder("utf-8");
+  const decoder: {
+    decode: (i?: BufferSource, o?: { stream?: boolean }) => string;
+  } = new (
+    globalThis as unknown as {
+      TextDecoder: new (label?: string) => {
+        decode: (i?: BufferSource, o?: { stream?: boolean }) => string;
+      };
+    }
+  ).TextDecoder("utf-8");
   let buffer = "";
   let collected = "";
   while (true) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: { done: boolean; value?: Uint8Array } = await (reader as any).read();
+    const result: { done: boolean; value?: Uint8Array } = await (
+      reader as any
+    ).read();
     if (result.done) break;
     buffer += decoder.decode(result.value, { stream: true });
     const lines = buffer.split("\n");
@@ -147,7 +153,10 @@ export async function consumeCodexSSE(
           throw new Error(`Codex response failed: ${JSON.stringify(event)}`);
         }
       } catch (e) {
-        if (e instanceof Error && e.message.startsWith("Codex response failed")) {
+        if (
+          e instanceof Error &&
+          e.message.startsWith("Codex response failed")
+        ) {
           throw e;
         }
       }

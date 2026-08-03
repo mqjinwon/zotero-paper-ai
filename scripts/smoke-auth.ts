@@ -27,12 +27,23 @@ async function main() {
 
   if (await store.exists(codexPath)) {
     const c = await loadCodexCredentials(store, codexPath);
-    console.log("codex: access len", c.accessToken.length, "account", !!c.accountId);
+    console.log(
+      "codex: access len",
+      c.accessToken.length,
+      "account",
+      !!c.accountId,
+    );
     try {
       const refreshed = await getCodexCredentials(store, { minTtl: 60 });
-      console.log("codex: get credentials ok, access len", refreshed.accessToken.length);
+      console.log(
+        "codex: get credentials ok, access len",
+        refreshed.accessToken.length,
+      );
     } catch (e) {
-      console.log("codex: get credentials:", (e as Error).message.slice(0, 200));
+      console.log(
+        "codex: get credentials:",
+        (e as Error).message.slice(0, 200),
+      );
     }
   }
 

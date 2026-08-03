@@ -1,16 +1,40 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+# Dependabot: keep main stable. Majors that break peers are ignored;
+# non-majors are grouped; open PR flood is capped.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
 
 version: 2
 updates:
-  - package-ecosystem: "npm" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
     groups:
       all-non-major:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Major bumps break peers / require deliberate upgrades
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "marked"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@zotero-plugin/eslint-config"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "zotero-plugin-scaffold"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "zotero-types"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "zotero-plugin-toolkit"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2

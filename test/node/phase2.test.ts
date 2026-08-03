@@ -12,10 +12,17 @@ import {
   buildUserPayload,
   MATH_PRESERVE,
 } from "../../src/llm/prompts.ts";
-import { isVisionMode, runTask, defaultModelFor } from "../../src/llm/router.ts";
+import {
+  isVisionMode,
+  runTask,
+  defaultModelFor,
+} from "../../src/llm/router.ts";
 import type { ChatMessage, LLMClient } from "../../src/llm/types.ts";
 import { messageHasImage } from "../../src/llm/types.ts";
-import { bytesToBase64, dataUrlToImagePayload } from "../../src/ui/imageCapture.ts";
+import {
+  bytesToBase64,
+  dataUrlToImagePayload,
+} from "../../src/ui/imageCapture.ts";
 import { renderMarkdown } from "../../src/ui/markdown.ts";
 import {
   cacheKey,
@@ -32,7 +39,6 @@ describe("phase2 figure prompts", () => {
     assert.ok(s.includes("$$") || s.includes("$") || s.includes("LaTeX"));
     assert.ok(s.includes("LaTeX") || s.includes(MATH_PRESERVE.slice(0, 20)));
   });
-
 
   it("user payload marks attached image for figure mode", () => {
     const u = buildUserPayload({
@@ -85,7 +91,6 @@ describe("phase2 multimodal builders", () => {
     assert.ok(parts.some((p) => p.type === "image_url"));
     assert.ok(parts.some((p) => p.type === "text"));
   });
-
 });
 
 describe("phase2 imageCapture pure helpers", () => {
@@ -132,7 +137,6 @@ describe("phase2 runTask routing", () => {
     // KaTeX path still works on model output
     assert.match(renderMarkdown(out), /katex/);
   });
-
 
   it("runTask rejects vision image on codex client path", async () => {
     const client: LLMClient = {
@@ -189,9 +193,8 @@ describe("latency helpers", () => {
 
 describe("per-feature config", () => {
   it("mergeFeatureConfig applies translate model/baseUrl/reasoning overrides", async () => {
-    const { mergeFeatureConfig, defaultModelForFeature } = await import(
-      "../../src/llm/featureConfig.ts"
-    );
+    const { mergeFeatureConfig, defaultModelForFeature } =
+      await import("../../src/llm/featureConfig.ts");
     const base = {
       provider: "grok" as const,
       model: "global-model",
@@ -229,9 +232,8 @@ describe("per-feature config", () => {
   });
 
   it("grok-4.5 coerces reasoning none → low", async () => {
-    const { resolveGrokReasoningEffort } = await import(
-      "../../src/llm/grokClient.ts"
-    );
+    const { resolveGrokReasoningEffort } =
+      await import("../../src/llm/grokClient.ts");
     assert.equal(resolveGrokReasoningEffort("grok-4.5", "none"), "low");
     assert.equal(resolveGrokReasoningEffort("grok-4.5", "high"), "high");
     assert.equal(resolveGrokReasoningEffort("grok-4.3", "none"), "none");

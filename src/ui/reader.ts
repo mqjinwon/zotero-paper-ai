@@ -5,9 +5,8 @@ import { getLastReaderSelection } from "./readerEvents";
 
 export function getSelectedReader(): _ZoteroTypes.ReaderInstance | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Z = (globalThis as any).Zotero || Zotero;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const win = Z?.getMainWindow?.() || globalThis;
     const tabs = win.Zotero_Tabs || (globalThis as any).Zotero_Tabs;
     if (tabs?.selectedID) {
@@ -15,7 +14,7 @@ export function getSelectedReader(): _ZoteroTypes.ReaderInstance | null {
       if (reader) return reader;
     }
     // Fallback: last open reader
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const readers = (Z.Reader as any)?._readers as
       | _ZoteroTypes.ReaderInstance[]
       | undefined;
@@ -34,7 +33,6 @@ export function getReaderSelectionText(): string {
   const reader = getSelectedReader();
   if (!reader) return "";
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = reader as any;
     if (typeof ztoolkit?.Reader?.getSelectedText === "function") {
       const t = ztoolkit.Reader.getSelectedText(reader);
@@ -60,7 +58,7 @@ export function getReaderItem(): Zotero.Item | null {
     }
     const reader = getSelectedReader();
     if (!reader) return null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const r = reader as any;
     const itemID = r.itemID || r._item?.id;
     if (!itemID) return null;
@@ -92,7 +90,8 @@ export async function saveAnswerAsNote(
   if (!item) {
     throw new Error("No open PDF item to attach a note to.");
   }
-  const parent = item.isAttachment() && item.parentItem ? item.parentItem : item;
+  const parent =
+    item.isAttachment() && item.parentItem ? item.parentItem : item;
   const note = new Zotero.Item("note");
   note.parentID = parent.id;
   const html = `<h2>${escapeHtml(title)}</h2><div>${body

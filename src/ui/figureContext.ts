@@ -22,11 +22,11 @@ export interface FigureContextBundle {
 }
 
 const LABEL_RE =
-  /(?:Figure|Fig\.?|FIGURE|Table|TABLE|표|그림)\s*[\dA-Za-z]+(?:\s*[\.\-]\s*[\dA-Za-z]+)?/gi;
+  /(?:Figure|Fig\.?|FIGURE|Table|TABLE|표|그림)\s*[\dA-Za-z]+(?:\s*[.-]\s*[\dA-Za-z]+)?/gi;
 
 /** Captions often start a line: "Figure 1. Training curves…" */
 const CAPTION_LINE_RE =
-  /(?:^|\n)\s*((?:Figure|Fig\.?|FIGURE|Table|TABLE|표|그림)\s*[\dA-Za-z.]+)\s*[\.\:\-]?\s*([^\n]{0,320})/g;
+  /(?:^|\n)\s*((?:Figure|Fig\.?|FIGURE|Table|TABLE|표|그림)\s*[\dA-Za-z.]+)\s*[.:-]?\s*([^\n]{0,320})/g;
 
 function normalizeWs(s: string): string {
   return s.replace(/\s+/g, " ").trim();
@@ -79,7 +79,9 @@ export function findFigureDiscussions(
       if (lab && low.includes(lab.toLowerCase())) score += 3;
     }
     // Prefer discussion / result style language
-    if (/show|depict|illustrat|compare|result|ablation|see fig|as shown/i.test(p)) {
+    if (
+      /show|depict|illustrat|compare|result|ablation|see fig|as shown/i.test(p)
+    ) {
       score += 1;
     }
     // Skip pure reference lists
@@ -115,10 +117,7 @@ export function buildFigureContextBundle(
     maxParas?: number;
   },
 ): FigureContextBundle {
-  const mentions = extractFigureMentions(
-    fullText,
-    opts?.maxMentions ?? 16,
-  );
+  const mentions = extractFigureMentions(fullText, opts?.maxMentions ?? 16);
   let prefer = opts?.preferLabels?.filter(Boolean) || [];
   if (!prefer.length) {
     prefer = mentions.map((m) => m.label);
@@ -128,10 +127,7 @@ export function buildFigureContextBundle(
     limit: opts?.maxParas ?? 8,
   });
   const labels = [
-    ...new Set([
-      ...prefer,
-      ...mentions.map((m) => m.label),
-    ]),
+    ...new Set([...prefer, ...mentions.map((m) => m.label)]),
   ].slice(0, 12);
 
   const captionBlock = mentions

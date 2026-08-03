@@ -99,7 +99,9 @@ export function defaultModelForFeature(
 }
 
 /** Default reasoning when prefs empty. */
-export function defaultReasoningForFeature(feature: FeatureId): ReasoningEffort {
+export function defaultReasoningForFeature(
+  feature: FeatureId,
+): ReasoningEffort {
   return feature === "translate" ? "low" : "medium";
 }
 
@@ -140,9 +142,7 @@ export function resolveFeatureConfig(feature: FeatureId): PluginLLMConfig {
 
   const provider = parseProvider(featProvider, g.provider);
   const model =
-    featModel ||
-    g.model ||
-    defaultModelForFeature(feature, provider);
+    featModel || g.model || defaultModelForFeature(feature, provider);
 
   // Base URL: feature override → global → provider default
   const grokBaseUrl = featBase || g.grokBaseUrl || "https://api.x.ai/v1";
@@ -184,10 +184,7 @@ export function mergeFeatureConfig(
     reasoning?: string;
   },
 ): PluginLLMConfig {
-  const provider = parseProvider(
-    overrides.provider || "",
-    globalCfg.provider,
-  );
+  const provider = parseProvider(overrides.provider || "", globalCfg.provider);
   const model =
     (overrides.model || "").trim() ||
     globalCfg.model ||

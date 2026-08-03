@@ -6,10 +6,7 @@
 import { config } from "../../package.json";
 import { createZoteroFileStore } from "../auth/fileStore";
 import { ensureIndex } from "../rag/index";
-import {
-  describeOpenPaperRef,
-  getOpenPaperRef,
-} from "../rag/paperRef";
+import { describeOpenPaperRef, getOpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
 import { findLatestIndexForPaper, formatIndexLabel } from "../rag/store";
 import { isVisionMode } from "../llm/router";
@@ -69,10 +66,7 @@ import {
   INDEX_BTN_RUNNING,
   setIndexButtonState,
 } from "./panelView";
-import {
-  getReaderSelectionText,
-  saveAnswerAsNote,
-} from "./reader";
+import { getReaderSelectionText, saveAnswerAsNote } from "./reader";
 
 export type { ChatTurn };
 
@@ -95,10 +89,7 @@ function scheduleRenderLog(session: PanelSession): void {
   }, 80);
 }
 
-function paintAssistantBody(
-  doc: Document,
-  content: string,
-): HTMLElement {
+function paintAssistantBody(doc: Document, content: string): HTMLElement {
   const body = doc.createElement("div");
   body.className = "pai-md";
   const ok = setMarkdownHtmlWithCites(body, content || "…");
@@ -328,15 +319,14 @@ function handleAct(session: PanelSession, act: string): void {
     void (async () => {
       try {
         if (!session.lastAnswer) {
-          throw new Error("저장할 답변이 없습니다. 먼저 질문하거나 번역하세요.");
+          throw new Error(
+            "저장할 답변이 없습니다. 먼저 질문하거나 번역하세요.",
+          );
         }
         await saveAnswerAsNote("Paper AI", session.lastAnswer);
         setSessionStatus(session, "마지막 답변을 노트에 저장했습니다.");
       } catch (e) {
-        setSessionStatus(
-          session,
-          e instanceof Error ? e.message : String(e),
-        );
+        setSessionStatus(session, e instanceof Error ? e.message : String(e));
       }
     })();
     return;
@@ -360,7 +350,7 @@ function handleAct(session: PanelSession, act: string): void {
         setSessionStatus(session, "열린 PDF가 없습니다.");
         return;
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const Z = (globalThis as any).Zotero;
       const reader =
         Z?.Reader?.getByTabID?.(
@@ -437,8 +427,7 @@ async function refreshStickyList(session: PanelSession): Promise<void> {
     const page = doc.createElement("div");
     page.className = "pai-sticky-page";
     const pi = stickyPageIndex(n);
-    page.textContent =
-      n.pageLabel || (pi < 9999 ? `p.${pi + 1}` : "p.?");
+    page.textContent = n.pageLabel || (pi < 9999 ? `p.${pi + 1}` : "p.?");
     const meta = doc.createElement("div");
     meta.className = "pai-sticky-meta";
     const k = doc.createElement("div");
@@ -446,14 +435,15 @@ async function refreshStickyList(session: PanelSession): Promise<void> {
     k.textContent = `${kindLabelKo(n.kind)}${n.collapsed ? " · 접힘" : ""}`;
     const q = doc.createElement("div");
     q.className = "pai-sticky-quote";
-    q.textContent = (n.quote || n.answer || "").replace(/\s+/g, " ").slice(0, 120);
+    q.textContent = (n.quote || n.answer || "")
+      .replace(/\s+/g, " ")
+      .slice(0, 120);
     meta.appendChild(k);
     meta.appendChild(q);
     row.appendChild(page);
     row.appendChild(meta);
     row.addEventListener("click", () => {
       void (async () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const Z = (globalThis as any).Zotero;
         const reader =
           Z?.Reader?.getByTabID?.(
@@ -671,7 +661,9 @@ async function runAction(
           mode,
           store,
           query: bundle.ragQuery || question || "figure caption",
-          selection: [selection, bundle.labels.join(" ")].filter(Boolean).join("\n"),
+          selection: [selection, bundle.labels.join(" ")]
+            .filter(Boolean)
+            .join("\n"),
           paper,
           ragPrefs: readRagPrefs(),
           onStatus: (msg) => setSessionStatus(session, msg),
@@ -773,14 +765,12 @@ async function runAction(
     try {
       const ref = paper || getOpenPaperRef();
       if (pinSticky && ref?.itemKey && result.answer) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const Z = (globalThis as any).Zotero;
         const reader =
           Z?.Reader?.getByTabID?.(
             Z?.getMainWindow?.()?.Zotero_Tabs?.selectedID,
           ) || Z?.Reader?._readers?.[Z.Reader._readers.length - 1];
-        const kind: StickyKind =
-          mode === "explain" ? "explain" : "figure";
+        const kind: StickyKind = mode === "explain" ? "explain" : "figure";
         await upsertSticky(
           {
             itemKey: ref.itemKey,
@@ -805,10 +795,7 @@ async function runAction(
         );
       }
     } catch {
-      setSessionStatus(
-        session,
-        `완료 · ${result.provider} / ${result.model}`,
-      );
+      setSessionStatus(session, `완료 · ${result.provider} / ${result.model}`);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

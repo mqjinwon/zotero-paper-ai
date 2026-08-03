@@ -45,10 +45,10 @@ Zotero Reader selection / pane
 
 ### Auth (port of PDFMathTranslate)
 
-| Provider | File | Refresh | Call |
-|----------|------|---------|------|
-| Codex | `~/.codex/auth.json` | `POST https://auth.openai.com/oauth/token` client_id `app_EMoamEEZ73f0CkXaXp7hrann` | `POST https://chatgpt.com/backend-api/codex/responses` SSE |
-| Grok | prefs/env key first; else `~/.grok/auth.json` | OIDC `token_endpoint` (default `https://auth.x.ai/oauth2/token`) | `https://api.x.ai/v1/chat/completions` |
+| Provider | File                                          | Refresh                                                                             | Call                                                       |
+| -------- | --------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Codex    | `~/.codex/auth.json`                          | `POST https://auth.openai.com/oauth/token` client_id `app_EMoamEEZ73f0CkXaXp7hrann` | `POST https://chatgpt.com/backend-api/codex/responses` SSE |
+| Grok     | prefs/env key first; else `~/.grok/auth.json` | OIDC `token_endpoint` (default `https://auth.x.ai/oauth2/token`)                    | `https://api.x.ai/v1/chat/completions`                     |
 
 Errors instruct `codex login` / `grok login`. No silent use of stale access after failed refresh.
 

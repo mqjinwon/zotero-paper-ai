@@ -34,15 +34,8 @@ import {
   linkifyBareCites,
   withEvidenceAnswer,
 } from "../../src/rag/context.ts";
-import {
-  cosine,
-  hybridScores,
-  normalizeScores,
-} from "../../src/rag/embed.ts";
-import {
-  buildExtractedDoc,
-  EmptyExtractError,
-} from "../../src/rag/extract.ts";
+import { cosine, hybridScores, normalizeScores } from "../../src/rag/embed.ts";
+import { buildExtractedDoc, EmptyExtractError } from "../../src/rag/extract.ts";
 import {
   buildIndexFromDoc,
   ensureIndex,
@@ -137,9 +130,10 @@ function makeLongPaper(sections: number): string {
   ];
   const parts: string[] = [];
   for (let i = 0; i < sections; i++) {
-    const name = names[i % names.length] + (i >= names.length ? ` Extra${i}` : "");
+    const name =
+      names[i % names.length] + (i >= names.length ? ` Extra${i}` : "");
     // ~3000 tokens each parent (~12000 chars) so total exceeds stuff limit
-    const body = (`paragraph about ${name} with unique token UNIQUE${i} `).repeat(
+    const body = `paragraph about ${name} with unique token UNIQUE${i} `.repeat(
       400,
     );
     parts.push(`${name}\n${body}`);
@@ -286,21 +280,12 @@ describe("rag store round-trip", () => {
 
 describe("rag mode resolution", () => {
   it("auto without key → bm25", () => {
-    assert.equal(
-      resolveEffectiveMode("auto", "none", ""),
-      "bm25",
-    );
-    assert.equal(
-      resolveEffectiveMode("auto", "openai", ""),
-      "bm25",
-    );
+    assert.equal(resolveEffectiveMode("auto", "none", ""), "bm25");
+    assert.equal(resolveEffectiveMode("auto", "openai", ""), "bm25");
   });
 
   it("auto with key → hybrid", () => {
-    assert.equal(
-      resolveEffectiveMode("auto", "openai", "sk-test"),
-      "hybrid",
-    );
+    assert.equal(resolveEffectiveMode("auto", "openai", "sk-test"), "hybrid");
   });
 
   it("hybrid without key throws clear error", () => {
@@ -311,17 +296,14 @@ describe("rag mode resolution", () => {
   });
 
   it("bm25 always bm25 even with key", () => {
-    assert.equal(
-      resolveEffectiveMode("bm25", "openai", "sk-test"),
-      "bm25",
-    );
+    assert.equal(resolveEffectiveMode("bm25", "openai", "sk-test"), "bm25");
   });
 
   it("shouldUseRag for chat/explain/figure, not translate", () => {
     assert.equal(shouldUseRag(true, "chat"), true);
     assert.equal(shouldUseRag(true, "explain"), true);
     assert.equal(shouldUseRag(true, "figure-explain"), true);
-    
+
     assert.equal(shouldUseRag(true, "translate"), false);
     assert.equal(shouldUseRag(false, "chat"), false);
     assert.equal(isRagMode("chat"), true);
