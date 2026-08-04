@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Run the same checks as GitHub CI before pushing.
+# Install: npm install  (sets core.hooksPath via prepare) or:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] npm run verify (lint + unit tests + build)…"
+npm run verify
+echo "[pre-push] OK"

@@ -7,14 +7,14 @@ AI co-reader for Zotero 7–9 PDF tabs: translate, explain, chat, paper summary,
 
 ## Features
 
-| Feature | What it does |
-| -------- | ------------- |
-| **Translate** | Fast selection translate (no RAG) |
-| **Explain / Figure** | Selection or area → sticky note on the PDF |
-| **Chat** | Paper Q&A with RAG; history syncs as a child note |
-| **Summary** | 3–5 bullet paper summary (synced note) |
-| **Auto-highlight** | 4-class claim/method/novelty/caveat annotations |
-| **Cites** | Inline `[§Section ¶n s…]` links jump in the PDF |
+| Feature              | What it does                                      |
+| -------------------- | ------------------------------------------------- |
+| **Translate**        | Fast selection translate (no RAG)                 |
+| **Explain / Figure** | Selection or area → sticky note on the PDF        |
+| **Chat**             | Paper Q&A with RAG; history syncs as a child note |
+| **Summary**          | 3–5 bullet paper summary (synced note)            |
+| **Auto-highlight**   | 4-class claim/method/novelty/caveat annotations   |
+| **Cites**            | Inline `[§Section ¶n s…]` links jump in the PDF   |
 
 ## Install
 
@@ -34,28 +34,30 @@ Full guides: [docs/USAGE_en.md](docs/USAGE_en.md) · [docs/USAGE_kr.md](docs/USA
 
 ## Data & sync
 
-| Data | Storage | Sync |
-| ---- | ------- | ---- |
-| Chat / sticky / summary | Child notes (`paper-ai-*` tags) | Zotero library sync |
-| Auto-highlights | PDF annotations (`paper-ai-auto`) | Zotero library sync |
-| RAG index | `{Zotero data dir}/paperai/rag/` (pref `dataDir`) | Local cache only |
-| OAuth / API keys | `~/.grok`, `~/.codex`, prefs | Device-local |
+| Data                    | Storage                                           | Sync                |
+| ----------------------- | ------------------------------------------------- | ------------------- |
+| Chat / sticky / summary | Child notes (`paper-ai-*` tags)                   | Zotero library sync |
+| Auto-highlights         | PDF annotations (`paper-ai-auto`)                 | Zotero library sync |
+| RAG index               | `{Zotero data dir}/paperai/rag/` (pref `dataDir`) | Local cache only    |
+| OAuth / API keys        | `~/.grok`, `~/.codex`, prefs                      | Device-local        |
 
 ## Dev
 
 ```bash
 npm install
-npm run test:node    # unit tests
+npm run verify       # lint + unit tests + build (same as CI; also pre-push hook)
 npm run deploy:local # build → default profile XPI
 # Restart Zotero
 ```
 
-| Path | Role |
-| ---- | ---- |
-| `src/llm/` | Prompts, Grok/Codex, translate |
-| `src/rag/` | Extract, chunk, BM25, auto-highlight |
-| `src/ui/` | Panel, stickies, reader events |
-| `src/auth/` | CLI OAuth reuse |
-| `src/storage/` | Item-note persistence |
+`npm install` sets `core.hooksPath` to `.githooks` so **`git push` runs `npm run verify` first**.
+
+| Path           | Role                                 |
+| -------------- | ------------------------------------ |
+| `src/llm/`     | Prompts, Grok/Codex, translate       |
+| `src/rag/`     | Extract, chunk, BM25, auto-highlight |
+| `src/ui/`      | Panel, stickies, reader events       |
+| `src/auth/`    | CLI OAuth reuse                      |
+| `src/storage/` | Item-note persistence                |
 
 License: AGPL-3.0-or-later. See [SECURITY.md](SECURITY.md).

@@ -114,6 +114,15 @@ URLs (this repo’s `zotero-plugin.config.ts`):
 
 If CI broken: `npm run build` → GitHub → Releases → tag `vX.Y.Z` → upload `.scaffold/build/*.xpi` + run scaffold release steps so **`release`/`update*.json`** stay consistent. Prefer fixing CI over manual forever.
 
+### Local CI before push
+
+```bash
+npm run verify   # lint:check + test:node + build  (= GitHub CI surface)
+```
+
+- `.githooks/pre-push` runs `verify` (enabled via `npm install` → `prepare` → `core.hooksPath`).
+- Skip once: `git push --no-verify` (prefer fixing instead).
+
 ### Checklist before first public release
 
 1. `package.json`: version, repository, homepage, addonID (`paper-ai@mqjinwon.github.io`)

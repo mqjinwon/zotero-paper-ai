@@ -85,7 +85,7 @@ export function filterGroundedQuotes(
 
   for (const it of items) {
     if (!isAutoHighlightCategory(it.category)) continue;
-    let quote = normalizeWs(it.quote || "");
+    const quote = normalizeWs(it.quote || "");
     if (quote.length < AUTO_MIN_QUOTE_CHARS) continue;
 
     const qLow = quote.toLowerCase();

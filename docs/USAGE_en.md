@@ -49,12 +49,12 @@ Or: **Edit → Settings → Paper AI Colleague** → Grok API key.
 2. Click **Generate**.
 3. PDF annotations appear in four classes (defaults):
 
-| Class | Default style | Meaning |
-| ----- | ------------- | ------- |
-| Claim / result | Yellow highlight | Main claims, results |
-| Method / definition | Blue underline | How / definitions |
-| Novelty | Green highlight | Contributions |
-| Caveat | Rose underline | Limitations, assumptions |
+| Class               | Default style    | Meaning                  |
+| ------------------- | ---------------- | ------------------------ |
+| Claim / result      | Yellow highlight | Main claims, results     |
+| Method / definition | Blue underline   | How / definitions        |
+| Novelty             | Green highlight  | Contributions            |
+| Caveat              | Rose underline   | Limitations, assumptions |
 
 4. List actions: **Go** / **Delete** one · **Clear all** (only `paper-ai-auto` tags).
 5. Prefs: max count, colors, highlight vs underline per class.
@@ -70,12 +70,12 @@ Re-generate after changing colors (old autos keep old colors until cleared).
 
 ### PDF sticky overlay
 
-| Button | Effect |
-| ------ | ------ |
-| Hide on PDF | Overlay cards/connectors off; list kept |
-| Show on PDF | Overlay on again |
-| Collapse / expand all | Fold cards only |
-| List row click | Show overlay + focus that sticky |
+| Button                | Effect                                  |
+| --------------------- | --------------------------------------- |
+| Hide on PDF           | Overlay cards/connectors off; list kept |
+| Show on PDF           | Overlay on again                        |
+| Collapse / expand all | Fold cards only                         |
+| List row click        | Show overlay + focus that sticky        |
 
 ### Index (RAG)
 
@@ -101,23 +101,23 @@ Re-generate after changing colors (old autos keep old colors until cleared).
 
 ## 6. Troubleshooting
 
-| Symptom | Try |
-| ------- | --- |
-| Empty panel / no buttons | Restart after deploy; check addon enabled |
-| Index / extract fail | Open PDF tab; need a text layer (not pure scan) |
-| Auto-highlight wrong place | Clear all → scroll pages → Generate again |
-| Auto-highlight save fail | Update to a build that sends annotation `key` (Zotero 9) |
-| No vision | Use Grok OAuth/API |
-| Debug | **Copy diagnostics** → paste into an issue/chat |
+| Symptom                    | Try                                                      |
+| -------------------------- | -------------------------------------------------------- |
+| Empty panel / no buttons   | Restart after deploy; check addon enabled                |
+| Index / extract fail       | Open PDF tab; need a text layer (not pure scan)          |
+| Auto-highlight wrong place | Clear all → scroll pages → Generate again                |
+| Auto-highlight save fail   | Update to a build that sends annotation `key` (Zotero 9) |
+| No vision                  | Use Grok OAuth/API                                       |
+| Debug                      | **Copy diagnostics** → paste into an issue/chat          |
 
 ## 7. Tags (for power users)
 
-| Tag | Meaning |
-| --- | ------- |
-| `paper-ai-chat` | Chat history note |
-| `paper-ai-sticky` | Sticky JSON note |
-| `paper-ai-summary` | Summary note |
-| `paper-ai-auto` | Auto-highlight annotations |
-| `paper-ai-auto/{claim\|method\|novelty\|caveat}` | Class |
+| Tag                                              | Meaning                    |
+| ------------------------------------------------ | -------------------------- |
+| `paper-ai-chat`                                  | Chat history note          |
+| `paper-ai-sticky`                                | Sticky JSON note           |
+| `paper-ai-summary`                               | Summary note               |
+| `paper-ai-auto`                                  | Auto-highlight annotations |
+| `paper-ai-auto/{claim\|method\|novelty\|caveat}` | Class                      |
 
 Manual highlights without these tags are never bulk-deleted by **Clear all**.

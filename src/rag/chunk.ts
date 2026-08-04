@@ -71,7 +71,8 @@ export function splitSentences(text: string): string[] {
     .replace(/\bEq\./g, "Eq\uE000")
     .replace(/\bSec\./g, "Sec\uE000")
     .replace(/\bet al\./gi, "et al\uE000");
-  const raw = protected_.split(/(?<=[.!?])\s+(?=[A-Z0-9\[(“"])/);
+  // Sentence split: next token starts with letter/digit/open-bracket/quote
+  const raw = protected_.split(/(?<=[.!?])\s+(?=[[A-Z0-9(“"])/);
   return raw
     .map((s) =>
       s

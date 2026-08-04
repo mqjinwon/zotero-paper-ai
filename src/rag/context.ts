@@ -136,9 +136,7 @@ export function uniqueCiteLinks(evidence: RetrievedEvidence[]): CiteLink[] {
 
     const bareSection = section ? `[${section}]` : "";
     const withLoc =
-      section && e.chunk
-        ? `[${section}${locatorSuffix(e.chunk)}]`
-        : "";
+      section && e.chunk ? `[${section}${locatorSuffix(e.chunk)}]` : "";
     const aliases = [bareSection, withLoc, e.cite].filter(
       (a) => a && a !== key,
     ) as string[];
