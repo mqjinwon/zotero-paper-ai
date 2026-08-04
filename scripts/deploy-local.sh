@@ -7,10 +7,15 @@ cd "$ROOT"
 
 npm run build
 
-XPI="$ROOT/.scaffold/build/paper-ai-colleague.xpi"
-if [[ ! -f "$XPI" ]]; then
-  # fallback: any xpi in build dir
-  XPI="$(ls -1 "$ROOT"/.scaffold/build/*.xpi 2>/dev/null | head -1 || true)"
+# Prefer versioned build (paper-ai-colleague-vX.Y.Z.xpi), then any .xpi
+VER="$(node -p "require('./package.json').version" 2>/dev/null || true)"
+XPI=""
+if [[ -n "${VER:-}" && -f "$ROOT/.scaffold/build/paper-ai-colleague-v${VER}.xpi" ]]; then
+  XPI="$ROOT/.scaffold/build/paper-ai-colleague-v${VER}.xpi"
+elif [[ -f "$ROOT/.scaffold/build/paper-ai-colleague.xpi" ]]; then
+  XPI="$ROOT/.scaffold/build/paper-ai-colleague.xpi"
+else
+  XPI="$(ls -1t "$ROOT"/.scaffold/build/*.xpi 2>/dev/null | head -1 || true)"
 fi
 if [[ -z "${XPI:-}" || ! -f "$XPI" ]]; then
   echo "missing XPI under .scaffold/build/" >&2

@@ -14,7 +14,7 @@ codex login   # 선택 (ChatGPT 텍스트)
 
 ### 설치
 
-- **릴리스:** XPI 다운로드 → 도구 → 플러그인 → 파일에서 설치 → 재시작.
+- **릴리스:** `paper-ai-colleague-vX.Y.Z.xpi` 다운로드 → 도구 → 플러그인 → 파일에서 설치 → 재시작.
 - **개발:** `npm install && npm run deploy:local` → Zotero 재시작.
 
 ## 2. 패널 열기

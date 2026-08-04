@@ -18,7 +18,7 @@ AI co-reader for Zotero 7–9 PDF tabs: translate, explain, chat, paper summary,
 
 ## Install
 
-1. Download `paper-ai-colleague.xpi` from [Releases](https://github.com/mqjinwon/zotero-paper-ai/releases).
+1. Download `paper-ai-colleague-vX.Y.Z.xpi` from [Releases](https://github.com/mqjinwon/zotero-paper-ai/releases).
 2. Zotero → Tools → Plugins → Install Add-on From File.
 3. Restart Zotero.
 

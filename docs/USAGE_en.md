@@ -14,7 +14,7 @@ Or: **Edit → Settings → Paper AI Colleague** → Grok API key.
 
 ### Install
 
-- **Release:** download XPI → Tools → Plugins → Install from file → restart.
+- **Release:** download `paper-ai-colleague-vX.Y.Z.xpi` → Tools → Plugins → Install from file → restart.
 - **Dev:** `npm install && npm run deploy:local` → restart Zotero.
 
 ## 2. Open the panel

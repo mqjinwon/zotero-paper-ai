@@ -73,7 +73,7 @@ How most Zotero plugins (template / scaffold) ship XPI — **not** by committing
 
 URLs (this repo’s `zotero-plugin.config.ts`):
 
-- XPI: `…/releases/download/v{{version}}/{{xpiName}}.xpi`
+- XPI: `…/releases/download/v{{version}}/paper-ai-colleague-v{{version}}.xpi` (`xpiName` in `zotero-plugin.config.ts`)
 - Updates: `…/releases/download/release/update.json` (stable) or `update-beta.json` (prerelease)
 
 ### Standard flow (this repo)

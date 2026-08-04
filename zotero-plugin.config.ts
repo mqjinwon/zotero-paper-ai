@@ -7,6 +7,8 @@ export default defineConfig({
   name: pkg.config.addonName,
   id: pkg.config.addonID,
   namespace: pkg.config.addonRef,
+  // Include version/tag in artifact name, e.g. paper-ai-colleague-v0.1.0.xpi
+  xpiName: `paper-ai-colleague-v${pkg.version}`,
   updateURL: `https://github.com/{{owner}}/{{repo}}/releases/download/release/${
     pkg.version.includes("-") ? "update-beta.json" : "update.json"
   }`,
