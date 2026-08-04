@@ -10,11 +10,11 @@ import { isVisionMode, runTask } from "../llm/router";
 import type { ImagePayload, TaskMode } from "../llm/types";
 import { shouldUseRag } from "../rag/config";
 import {
-  enrichEvidenceWithPages,
-  evidenceFooter,
-  queryPaper,
-  withEvidenceAnswer,
-} from "../rag/index";
+  groundAnswerToPaper,
+  sentencesFromIndex,
+  type PaperSentence,
+} from "../rag/groundAnswer";
+import { queryPaper } from "../rag/index";
 import { getOpenPaperRef, type OpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
 import type { ExtractInput } from "../rag/extract";
@@ -102,6 +102,8 @@ export async function attachRagContext(opts: {
   contextBlock: string;
   ragFooter: string;
   evidence: RetrievedEvidence[];
+  /** Full-index sentences for post-hoc grounding (not RAG cite slots). */
+  paperSentences: PaperSentence[];
   indexLabel: string;
   usedRag: boolean;
 }> {
@@ -109,6 +111,7 @@ export async function attachRagContext(opts: {
     contextBlock: "",
     ragFooter: "",
     evidence: [] as RetrievedEvidence[],
+    paperSentences: [] as PaperSentence[],
     indexLabel: "",
     usedRag: false,
   };
@@ -139,8 +142,9 @@ export async function attachRagContext(opts: {
     ).length;
     return {
       contextBlock: rag.contextBlock || "",
-      ragFooter: evidenceFooter(rag.evidence),
+      ragFooter: "",
       evidence: rag.evidence || [],
+      paperSentences: sentencesFromIndex(rag.index),
       indexLabel: indexLabelFrom(rag.index.retrievalModeUsed, n),
       usedRag: true,
     };
@@ -187,8 +191,9 @@ export async function runPaperTask(
   const rag = prefetched
     ? {
         contextBlock: prefetched,
-        ragFooter: "근거: figure 캡션·본문 논의 + 검색 문단",
+        ragFooter: "",
         evidence: [] as RetrievedEvidence[],
+        paperSentences: [] as PaperSentence[],
         indexLabel: "",
         usedRag: true,
       }
@@ -226,22 +231,44 @@ export async function runPaperTask(
   });
 
   let ragFooter = "";
-  if (rag.evidence?.length && answer) {
-    // Resolve pages via PDF text search only (no Body-proportional invent)
-    try {
-      const { filled, via } = await enrichEvidenceWithPages(rag.evidence);
-      input.onStatus?.(
-        filled
-          ? `근거 페이지 매핑 ${filled}/${rag.evidence.length} · ${via}`
-          : `근거 페이지 미확인 · ${via} (검색 폴백)`,
-      );
-    } catch {
-      /* still linkify without pages */
+  // Post-hoc: match answer claims → real paper sentences (not RAG cite ids)
+  const paperSents = rag.paperSentences || [];
+  if (answer && paperSents.length) {
+    input.onStatus?.("답변 ↔ 논문 문장 정렬 중…");
+    const grounded = groundAnswerToPaper(answer, paperSents);
+    answer = grounded.answer;
+    ragFooter = grounded.ragFooter;
+    input.onStatus?.(
+      grounded.matched
+        ? `근거 링크 ${grounded.matched}/${grounded.claims} 문장 매칭`
+        : `근거 링크 없음 (문장 매칭 임계값 미달 · 후보 ${grounded.claims})`,
+    );
+  } else if (answer && rag.evidence?.length) {
+    // Fallback: only retrieved evidence text as sentence corpus
+    const sents: PaperSentence[] = rag.evidence
+      .map((e) => {
+        const text = (
+          e.chunk?.anchorText ||
+          e.chunk?.text ||
+          e.contextText ||
+          ""
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text.length < 28) return null;
+        return {
+          text: text.length > 420 ? `${text.slice(0, 419).trim()}…` : text,
+          pageStart: e.chunk?.pageStart,
+          pageEnd: e.chunk?.pageEnd,
+          section: e.chunk?.section,
+        } as PaperSentence;
+      })
+      .filter(Boolean) as PaperSentence[];
+    if (sents.length) {
+      const grounded = groundAnswerToPaper(answer, sents);
+      answer = grounded.answer;
+      ragFooter = grounded.ragFooter;
     }
-    // Inline [E#] / legacy [§…] links only — no trailing evidence dump
-    const applied = withEvidenceAnswer(answer, rag.evidence);
-    answer = applied.answer;
-    ragFooter = applied.ragFooter;
   }
 
   return {

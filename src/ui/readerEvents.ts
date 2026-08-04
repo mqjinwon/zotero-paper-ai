@@ -14,7 +14,7 @@ import { readRagPrefs } from "../rag/prefs";
 import { diag } from "../utils/diagnostics";
 import { getPref, setPref } from "../utils/prefs";
 import { beginAreaSelectCapture } from "./imageCapture";
-import { enrichEvidenceWithPages, withEvidenceAnswer } from "../rag/index";
+import { groundAnswerToPaper } from "../rag/groundAnswer";
 import { attachRagContext } from "./paperTask";
 import {
   installFigureAnnotationButtons,
@@ -574,19 +574,15 @@ export async function runStickyTask(opts: {
       },
       reasoningEffort: cfg.reasoningEffort,
     });
-    if (rag.evidence?.length && answer) {
-      try {
-        await enrichEvidenceWithPages(rag.evidence);
-      } catch {
-        /* ignore */
-      }
-      // Inline [E#] / legacy [§…] links only — no trailing evidence dump
-      answer = withEvidenceAnswer(answer, rag.evidence).answer;
+    if (answer && rag.paperSentences?.length) {
+      const g = groundAnswerToPaper(answer, rag.paperSentences);
+      answer = g.answer;
     }
     diag("sticky", "explain RAG", {
       usedRag: rag.usedRag,
       contextLen: rag.contextBlock.length,
       evidence: rag.evidence?.length || 0,
+      paperSents: rag.paperSentences?.length || 0,
     });
 
     answer = answer || "(empty)";

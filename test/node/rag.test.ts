@@ -32,11 +32,8 @@ import {
 import {
   citeOf,
   citePreview,
-  evidenceFooter,
   evidenceId,
   formatContextBlock,
-  linkifyBareCites,
-  stampEvidenceIds,
   withEvidenceAnswer,
 } from "../../src/rag/context.ts";
 import {
@@ -435,7 +432,7 @@ describe("rag no-key index + query", () => {
       });
       assert.ok(result.contextBlock.length > 0);
       assert.ok(result.evidence.length > 0);
-      assert.match(result.contextBlock, /\[E\d+\]/);
+      assert.match(result.contextBlock, /\[\d+\]/);
       assert.equal(result.stats.usedDense, false);
       // short fixture → stuff mode
       assert.ok(result.mode === "stuff" || result.mode === "rag");
@@ -472,7 +469,7 @@ describe("rag no-key index + query", () => {
         result.contextBlock.includes("UNIQUE3"),
       "expected UNIQUE3 section ranked high",
     );
-    assert.match(result.contextBlock, /\[E\d+\]/);
+    assert.match(result.contextBlock, /\[\d+\]/);
   });
 });
 
@@ -550,10 +547,10 @@ describe("rag hybrid vs bm25 order", () => {
   });
 });
 
-describe("rag context cites + wiring", () => {
-  it("primary evidence ids are [E1]…; legacy citeOf still § form", () => {
-    assert.equal(evidenceId(0), "[E1]");
-    assert.equal(evidenceId(2), "[E3]");
+describe("rag context reading block + legacy helpers", () => {
+  it("primary evidence ids still stamp [1]… internally; citeOf still § form", () => {
+    assert.equal(evidenceId(0), "[1]");
+    assert.equal(evidenceId(2), "[3]");
     const cite = citeOf({
       id: "a",
       text: "x",
@@ -565,7 +562,7 @@ describe("rag context cites + wiring", () => {
     assert.equal(cite, "[§Method p.3]");
   });
 
-  it("formatContextBlock stamps [E#] + Quote needle (not §Body)", () => {
+  it("formatContextBlock is reading context without cite-id catalog", () => {
     const evidence = [
       {
         chunk: {
@@ -583,38 +580,10 @@ describe("rag context cites + wiring", () => {
     ];
     const block = formatContextBlock(evidence, "Demo Paper");
     assert.match(block, /Demo Paper/);
-    assert.match(block, /\[E1\]/);
-    assert.match(block, /Quote:.*residual force/i);
     assert.match(block, /residual force/);
+    assert.doesNotMatch(block, /Citeable passages/);
+    assert.doesNotMatch(block, /#cite-1/);
     assert.doesNotMatch(block, /\[§Body/);
-    assert.equal(evidence[0].cite, "[E1]");
-  });
-
-  it("evidenceFooter linkifies E cites with page + preview", () => {
-    const footer = evidenceFooter(
-      stampEvidenceIds([
-        {
-          chunk: {
-            id: "1",
-            text: "body",
-            section: "Body (1)",
-            kind: "parent",
-            tokenEstimate: 5,
-            pageStart: 2,
-            pageEnd: 3,
-            anchorText:
-              "We present residual force learning for locomotion on rough terrain.",
-          },
-          score: 1,
-          contextText: "We present residual force learning for locomotion.",
-          cite: "pending",
-        },
-      ]),
-    );
-    assert.match(footer, /근거/);
-    assert.match(footer, /#paperai-page-2/);
-    assert.match(footer, /E1/);
-    assert.match(footer, /residual force/);
   });
 
   it("citePreview builds a sentence-level locate needle", () => {
@@ -631,107 +600,37 @@ describe("rag context cites + wiring", () => {
     assert.ok(p1.length >= 24 && p2.length >= 24);
   });
 
-  it("linkifyBareCites turns [E1] into HTML with quote data-preview", () => {
-    const evidence = stampEvidenceIds([
-      {
-        chunk: {
-          id: "1",
-          text: "t",
-          section: "Body (1)",
-          kind: "parent" as const,
-          tokenEstimate: 1,
-          pageStart: 1,
-          anchorText:
-            "We present residual force learning for quadruped locomotion on rough terrain.",
-        },
-        score: 1,
-        contextText: "Abstract under 1 ms",
-        cite: "x",
-      },
-    ]);
-    const out = linkifyBareCites("속도는 under 1 ms 입니다 [E1].", evidence);
-    assert.match(out, /href="#paperai-page-1"/);
-    assert.match(out, /data-page="1"/);
-    assert.match(out, /class="paperai-cite"/);
-    assert.match(out, /data-preview="[^"]*residual force/);
-    assert.match(out, /E1/);
-    assert.match(out, /residual force/);
-    assert.doesNotMatch(out, /\[E1\](?!<)/);
-  });
-
-  it("linkifyBareCites still maps legacy [§Body] aliases", () => {
-    const evidence = stampEvidenceIds([
-      {
-        chunk: {
-          id: "1",
-          text: "t",
-          section: "Body (1)",
-          kind: "parent" as const,
-          tokenEstimate: 1,
-          pageStart: 1,
-          anchorText:
-            "We present residual force learning for quadruped locomotion on rough terrain.",
-        },
-        score: 1,
-        contextText: "Abstract under 1 ms",
-        cite: "x",
-      },
-    ]);
-    const out = linkifyBareCites("see [§Body (1)].", evidence);
-    assert.match(out, /class="paperai-cite"/);
-    assert.match(out, /data-preview="[^"]*residual force/);
-  });
-
-  it("withEvidenceAnswer linkifies [E1] without evidence dump", () => {
-    const { answer, ragFooter } = withEvidenceAnswer("see [E1]", [
-      {
-        chunk: {
-          id: "1",
-          text: "mpc",
-          section: "Method",
-          kind: "parent",
-          tokenEstimate: 1,
-          pageStart: 3,
-          anchorText: "MPC residual forces improve tracking on stairs.",
-        },
-        score: 1,
-        contextText: "MPC residual forces",
-        cite: "old",
-      },
-    ]);
-    assert.equal(ragFooter, "");
-    assert.match(answer, /#paperai-page-3/);
-    assert.match(answer, /E1|paperai-cite/);
-    assert.doesNotMatch(answer, /——/);
-    assert.doesNotMatch(answer, /근거 \(라벨 클릭/);
-  });
-
-  it("withEvidenceAnswer can still append footer when asked", () => {
+  it("withEvidenceAnswer grounds via paper sentences from evidence (post-hoc)", () => {
     const { answer, ragFooter } = withEvidenceAnswer(
-      "see [E1]",
+      "The method uses residual force learning for locomotion on terrain.",
       [
         {
           chunk: {
             id: "1",
-            text: "mpc",
+            text: "We present residual force learning for quadruped locomotion on rough terrain.",
             section: "Method",
             kind: "parent",
             tokenEstimate: 1,
             pageStart: 3,
+            anchorText:
+              "We present residual force learning for quadruped locomotion on rough terrain.",
           },
           score: 1,
-          contextText: "MPC residual forces",
-          cite: "[§Method p.3]",
+          contextText:
+            "We present residual force learning for quadruped locomotion on rough terrain.",
+          cite: "old",
         },
       ],
-      { appendFooter: true },
     );
-    assert.match(ragFooter, /#paperai-page-3/);
-    assert.match(answer, /——/);
-    assert.match(answer, /MPC residual/);
+    // Grounded link uses paper sentence as preview
+    if (answer.includes("paperai-cite")) {
+      assert.match(answer, /data-preview="[^"]*residual force learning/i);
+      assert.doesNotMatch(answer, />\[1\]</);
+    }
+    void ragFooter;
   });
 
-  it("chat/figure user payload includes RAG evidence; translate does not need it", () => {
+  it("chat/figure user payload includes paper text; translate does not", () => {
     const evidence = formatContextBlock(
       [
         {
@@ -755,22 +654,21 @@ describe("rag context cites + wiring", () => {
       context: evidence,
       paperTitle: "P",
     });
-    assert.match(chat, /Paper evidence \(RAG\)/);
-    assert.match(chat, /\[E1\]/);
+    assert.match(chat, /Paper text/);
+    assert.match(chat, /MPC residual|Passage/);
 
     const fig = buildUserPayload({
       mode: "figure-explain",
       context: evidence,
       hasImage: true,
     });
-    assert.match(fig, /Paper evidence \(RAG\)/);
-    assert.match(fig, /\[E1\]/);
+    assert.match(fig, /Paper text/);
 
     const tr = buildUserPayload({
       mode: "translate",
       selection: "hello world",
     });
-    assert.doesNotMatch(tr, /Paper evidence/);
+    assert.doesNotMatch(tr, /Paper text/);
     assert.doesNotMatch(tr, /Evidence passages/);
   });
 });

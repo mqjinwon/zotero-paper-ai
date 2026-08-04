@@ -1,7 +1,7 @@
 /**
  * Attach page numbers to evidence via real PDF text search only.
  * Does NOT invent pages from Body (k) proportional heuristics (disabled).
- * Cite labels stay as [E#]; navigation uses quote locate when page is unknown.
+ * Cite labels stay as [1]; navigation uses quote locate / position.rects.
  */
 
 import type { RetrievedEvidence } from "./types";
@@ -173,6 +173,7 @@ export async function enrichEvidenceWithPages(
 
   for (const e of evidence) {
     if (e.chunk.pageStart != null) {
+      if (e.chunk.pageStart >= 1) e.pageIndex0 = e.chunk.pageStart - 1;
       filled++;
       continue;
     }
@@ -202,8 +203,11 @@ export async function enrichEvidenceWithPages(
     if (page != null && page > 0) {
       e.chunk.pageStart = page;
       e.chunk.pageEnd = page;
-      // Do not rewrite e.cite — model answers use [E#]
+      e.pageIndex0 = page - 1;
+      // Do not rewrite e.cite — model answers use [1]
       filled++;
+    } else if (e.chunk.pageStart != null && e.chunk.pageStart >= 1) {
+      e.pageIndex0 = e.chunk.pageStart - 1;
     }
   }
 
@@ -211,4 +215,49 @@ export async function enrichEvidenceWithPages(
     filled,
     via: via === "none" ? (numPages ? "search-miss" : "no-pdf") : via,
   };
+}
+
+/**
+ * Best-effort: attach PDF user-space rects for evidence with a quote needle.
+ * Uses the same locate path as auto-HL / cite click. Soft-fail always.
+ */
+export async function enrichEvidenceWithRects(
+  evidence: RetrievedEvidence[],
+  opts?: { max?: number },
+): Promise<{ located: number }> {
+  if (!evidence.length) return { located: 0 };
+  const max = opts?.max ?? 8;
+  let located = 0;
+  try {
+    const { locateQuoteInOpenPdf } = await import("./autoHighlight/locate");
+    const { citePreview } = await import("./context");
+    for (let i = 0; i < evidence.length && located < max; i++) {
+      const e = evidence[i];
+      if (e.rects?.length) {
+        located++;
+        continue;
+      }
+      const src = e.chunk?.anchorText || e.contextText || e.chunk?.text || "";
+      const quote = citePreview(src, 200);
+      if (quote.length < 12) continue;
+      const pageHint = e.chunk?.pageStart;
+      try {
+        const loc = await locateQuoteInOpenPdf(quote, pageHint);
+        if (loc?.rects?.length) {
+          e.rects = loc.rects.slice(0, 6);
+          e.pageIndex0 = loc.pageIndex;
+          if (e.chunk && e.chunk.pageStart == null) {
+            e.chunk.pageStart = loc.pageIndex + 1;
+            e.chunk.pageEnd = loc.pageIndex + 1;
+          }
+          located++;
+        }
+      } catch {
+        /* soft */
+      }
+    }
+  } catch {
+    /* locate module unavailable in tests */
+  }
+  return { located };
 }

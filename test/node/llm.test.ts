@@ -41,13 +41,14 @@ describe("prompts", () => {
   it("explain prompt is paper-grounded and structured", () => {
     const s = buildSystemPrompt("explain", "ko");
     assert.match(s, /co-reader|research/i);
-    assert.match(s, /evidence|\[E1\]|assumption/i);
+    assert.match(s, /evidence|\[1\]|assumption|Citations/i);
   });
 
-  it("chat prompt asks for [E#] cites not §Body", () => {
+  it("chat prompt forbids bibliography cite markers (post-hoc grounding)", () => {
     const s = buildSystemPrompt("chat", "ko");
-    assert.match(s, /\[E1\]|\[E2\]/);
-    assert.match(s, /§Body|never invent|Do not invent/i);
+    assert.match(s, /bibliography|Do \*\*not\*\* insert/i);
+    assert.doesNotMatch(s, /#cite-1/);
+    assert.match(s, /plain prose|Grounding/i);
   });
 
   it("summary prompt asks for 3–5 bullets only", () => {

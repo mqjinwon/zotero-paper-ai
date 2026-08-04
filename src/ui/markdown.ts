@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import katex from "katex";
+import { parseRectsAttr } from "../rag/context";
 import { diag } from "../utils/diagnostics";
 import { navigateReaderToEvidence } from "./citeNavigate";
 
@@ -251,14 +252,20 @@ function eventElement(ev: Event): Element | null {
 function parseCiteAnchor(a: HTMLAnchorElement): {
   page: number;
   preview: string;
+  rects?: number[][];
 } {
   const href = a.getAttribute("href") || "";
   const dataPage = a.getAttribute("data-page");
-  const preview =
-    a.getAttribute("data-preview") || a.getAttribute("title") || "";
+  // Prefer data-preview only (title now holds meta · quote for hover)
+  const preview = a.getAttribute("data-preview") || "";
   const m = href.match(/^#paperai-page-(\d+)$/);
   const page = dataPage ? Number(dataPage) : m ? Number(m[1]) : 0;
-  return { page: Number.isFinite(page) ? page : 0, preview };
+  const rects = parseRectsAttr(a.getAttribute("data-rects"));
+  return {
+    page: Number.isFinite(page) ? page : 0,
+    preview,
+    rects,
+  };
 }
 
 function flashCite(a: HTMLAnchorElement, ok: boolean): void {
@@ -298,20 +305,22 @@ export function handleCiteClick(ev: Event, root?: HTMLElement | null): boolean {
     /* ignore */
   }
 
-  const { page, preview } = parseCiteAnchor(a);
+  const { page, preview, rects } = parseCiteAnchor(a);
   diag("cite", "click", {
     page,
     href: a.getAttribute("href"),
-    text: (a.textContent || "").slice(0, 60),
+    text: (a.textContent || "").slice(0, 16),
     preview: (preview || "").slice(0, 48),
+    rects: rects?.length || 0,
   });
 
-  void navigateReaderToEvidence(page, preview).then((ok) => {
+  void navigateReaderToEvidence(page, preview, rects).then((ok) => {
     flashCite(a, ok);
     diag("cite", "click result", {
       page,
       ok,
       hasQuote: !!(preview && preview.length >= 12),
+      rects: rects?.length || 0,
     });
   });
   return true;
@@ -353,6 +362,93 @@ export function wirePaperaiCiteLinks(host: HTMLElement): void {
   }
 }
 
+/** Lightweight hover popover for cite chips (Phase 4). */
+function wireCiteHoverCards(host: HTMLElement): void {
+  const doc = host.ownerDocument;
+  if (!doc) return;
+  const h = host as HTMLElement & { __paperaiCiteHover?: boolean };
+  if (h.__paperaiCiteHover) return;
+  h.__paperaiCiteHover = true;
+
+  let tip: HTMLElement | null = null;
+  const hide = () => {
+    if (tip?.parentNode) tip.parentNode.removeChild(tip);
+    tip = null;
+  };
+  const show = (a: HTMLAnchorElement) => {
+    hide();
+    const preview = a.getAttribute("data-preview") || "";
+    const title = a.getAttribute("title") || "";
+    const body = preview || title;
+    if (!body || body.length < 8) return;
+    const mount = doc.body;
+    if (!mount) return;
+    tip = doc.createElement("div");
+    tip.className = "paperai-cite-tip";
+    tip.textContent = body.slice(0, 280);
+    Object.assign(tip.style, {
+      position: "fixed",
+      zIndex: "99999",
+      maxWidth: "320px",
+      padding: "6px 8px",
+      background: "#1a1a1a",
+      color: "#f5f5f5",
+      font: "11px/1.35 system-ui, sans-serif",
+      borderRadius: "6px",
+      boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+      pointerEvents: "none",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+    } as CSSStyleDeclaration);
+    mount.appendChild(tip);
+    const r = a.getBoundingClientRect();
+    const tw = tip.offsetWidth || 200;
+    const th = tip.offsetHeight || 40;
+    let left = r.left;
+    let top = r.bottom + 6;
+    if (left + tw > (doc.defaultView?.innerWidth || 800) - 8) {
+      left = Math.max(8, (doc.defaultView?.innerWidth || 800) - tw - 8);
+    }
+    if (top + th > (doc.defaultView?.innerHeight || 600) - 8) {
+      top = Math.max(8, r.top - th - 6);
+    }
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  };
+
+  host.addEventListener(
+    "mouseover",
+    (ev) => {
+      const t = ev.target as Node | null;
+      const el =
+        t && t.nodeType === 1
+          ? (t as Element)
+          : t && t.nodeType === 3
+            ? (t as Text).parentElement
+            : null;
+      const a = el?.closest?.(CITE_SEL) as HTMLAnchorElement | null;
+      if (a && host.contains(a)) show(a);
+    },
+    true,
+  );
+  host.addEventListener(
+    "mouseout",
+    (ev) => {
+      const t = ev.target as Node | null;
+      const el =
+        t && t.nodeType === 1
+          ? (t as Element)
+          : t && t.nodeType === 3
+            ? (t as Text).parentElement
+            : null;
+      const a = el?.closest?.(CITE_SEL);
+      if (a) hide();
+    },
+    true,
+  );
+  host.addEventListener("scroll", hide, true);
+}
+
 /** setMarkdownHtml + wire cite links. */
 export function setMarkdownHtmlWithCites(
   host: HTMLElement,
@@ -361,6 +457,7 @@ export function setMarkdownHtmlWithCites(
   const ok = setMarkdownHtml(host, md);
   try {
     wirePaperaiCiteLinks(host);
+    wireCiteHoverCards(host);
   } catch (e) {
     diag("cite", "wire fail", String(e));
   }

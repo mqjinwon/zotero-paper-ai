@@ -360,32 +360,92 @@ export function flashLocatedQuote(loc: LocatedQuote): boolean {
 }
 
 /**
- * Jump to evidence text (sentence-level) using the same locate path as auto-HL.
- * Falls back to page-only navigation when quote match fails.
+ * Official Zotero Reader.navigate with page + position.rects (same contract as sticky).
+ * Returns true if navigate was invoked without throw.
+ */
+export async function navigateReaderToPosition(
+  pageIndex0: number,
+  rects?: number[][],
+  pageLabel?: string,
+): Promise<boolean> {
+  if (!(pageIndex0 >= 0) || !Number.isFinite(pageIndex0)) return false;
+  const Z = resolveZotero();
+  const readers = collectReaders(Z);
+  const location: {
+    pageIndex: number;
+    pageLabel?: string;
+    position?: { pageIndex: number; rects?: number[][] };
+  } = {
+    pageIndex: pageIndex0,
+  };
+  if (pageLabel) location.pageLabel = pageLabel;
+  if (rects?.length) {
+    location.position = { pageIndex: pageIndex0, rects };
+  }
+
+  for (const reader of readers) {
+    if (!reader?.navigate) continue;
+    try {
+      await reader.navigate(location);
+      diag("cite", "navigate position ok", {
+        pageIndex0,
+        rects: rects?.length || 0,
+      });
+      return true;
+    } catch (e) {
+      diag("cite", "navigate position fail", String(e));
+    }
+  }
+  // Fallback: page-only via same stack
+  return navigateReaderToPageOnly(pageIndex0 + 1);
+}
+
+/**
+ * Jump to evidence text (sentence-level).
+ * Primary: official reader.navigate({ pageIndex, position: { rects } }).
+ * Fallback: text locate → navigate with found rects + flash; then page-only.
  */
 export async function navigateReaderToEvidence(
   pageLabel: number,
   quote?: string,
+  rects?: number[][],
 ): Promise<boolean> {
   const page =
     Number.isFinite(pageLabel) && pageLabel >= 1 ? Math.floor(pageLabel) : 0;
   const q = String(quote || "")
     .replace(/\s+/g, " ")
     .trim();
+  const preRects =
+    rects?.filter((r) => Array.isArray(r) && r.length >= 4) || [];
 
   diag("cite", "navigate evidence", {
     page,
     quoteLen: q.length,
     head: q.slice(0, 48),
+    preRects: preRects.length,
   });
 
-  // 1) Open the hinted page so the text layer / PDF page is nearby
+  // 1) Precomputed rects → official Location navigate + flash
+  if (preRects.length && page >= 1) {
+    const ok = await navigateReaderToPosition(page - 1, preRects, String(page));
+    if (ok) {
+      flashLocatedQuote({
+        pageIndex: page - 1,
+        pageLabel: String(page),
+        rects: preRects,
+        matchedText: q.slice(0, 80),
+      });
+      return true;
+    }
+  }
+
+  // 2) Open the hinted page so the text layer / PDF page is nearby
   if (page >= 1) {
     await navigateReaderToPageOnly(page);
     await sleep(180);
   }
 
-  // 2) Text locate (DOM range → PDF.js items), same as auto-highlight
+  // 3) Text locate (DOM range → PDF.js items), same as auto-highlight
   if (q.length >= 12) {
     let loc = await locateQuoteInOpenPdf(q, page >= 1 ? page : undefined);
     if (!loc && page >= 1) {
@@ -398,19 +458,19 @@ export async function navigateReaderToEvidence(
       loc = await locateQuoteInOpenPdf(q, undefined);
     }
     if (loc) {
-      const targetPage = loc.pageIndex + 1;
-      if (targetPage !== page) {
-        await navigateReaderToPageOnly(targetPage);
-        await sleep(160);
-        // Re-locate after the target page is shown (better DOM rects)
-        const loc2 = await locateQuoteInOpenPdf(q, targetPage);
-        if (loc2) loc = loc2;
-      }
+      // Official navigate with found position (sticky-aligned)
+      await navigateReaderToPosition(
+        loc.pageIndex,
+        loc.rects,
+        loc.pageLabel || String(loc.pageIndex + 1),
+      );
+      await sleep(80);
       const flashed = flashLocatedQuote(loc);
       diag("cite", "locate ok", {
         page: loc.pageIndex + 1,
         flashed,
         matched: (loc.matchedText || "").slice(0, 48),
+        rects: loc.rects?.length || 0,
       });
       return true;
     }
@@ -420,7 +480,7 @@ export async function navigateReaderToEvidence(
     });
   }
 
-  // 3) Page-only fallback
+  // 4) Page-only fallback
   if (page >= 1) {
     const ok = await navigateReaderToPageOnly(page);
     return ok;

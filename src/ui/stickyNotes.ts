@@ -380,20 +380,60 @@ ${getKatexCss()}
 .paperai-sticky-body h1, .paperai-sticky-body h2, .paperai-sticky-body h3 {
   margin: 0.5em 0 0.3em; font-weight: 700;
 }
-.paperai-sticky-body a.paperai-cite,
-.paperai-sticky-body a[href^="#paperai-page-"],
-.paperai-sticky-body a[href="#paperai-cite"] {
+.paperai-sticky-body a.paperai-cite-phrase {
   color: #1557b0;
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
   font-weight: 600;
+  background: transparent;
+  white-space: normal;
 }
-.paperai-sticky-body a.paperai-cite:hover,
-.paperai-sticky-body a[href^="#paperai-page-"]:hover {
+.paperai-sticky-body a.paperai-cite-phrase:hover {
   color: #0b3d91;
   background: #e8f0fe;
   border-radius: 2px;
+}
+.paperai-sticky-body a.paperai-cite-chip,
+.paperai-sticky-body a[href^="#paperai-page-"],
+.paperai-sticky-body a[href="#paperai-cite"] {
+  color: #1557b0;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85em;
+  padding: 0 4px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: #e8f0fe;
+  white-space: nowrap;
+}
+.paperai-sticky-body a.paperai-cite-chip:hover,
+.paperai-sticky-body a[href^="#paperai-page-"]:hover {
+  color: #0b3d91;
+  background: #d2e3fc;
+}
+.paperai-sticky-body a.paperai-cite {
+  color: #1557b0;
+  cursor: pointer;
+  font-weight: 600;
+}
+.paperai-sticky-body .paperai-evidence-tray {
+  margin-top: 0.45em;
+  padding: 0.3em 0.45em;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fafafa;
+  font-size: 11px;
+}
+.paperai-sticky-body .paperai-evidence-tray > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #555;
+}
+.paperai-sticky-body .paperai-evidence-list {
+  margin: 0.3em 0 0 1em;
+  padding: 0;
 }
 /* KaTeX injects a body{} rule — keep iframe body from becoming unselectable */
 body {

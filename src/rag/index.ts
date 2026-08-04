@@ -16,7 +16,10 @@ import {
   buildIndexDiagnostics,
   formatIndexDiagnosticsDetail,
 } from "./diagnostics";
-import { enrichEvidenceWithPages } from "./enrichPages";
+import {
+  enrichEvidenceWithPages,
+  enrichEvidenceWithRects,
+} from "./enrichPages";
 import { embedTexts } from "./embed";
 import {
   buildExtractedDoc,
@@ -24,6 +27,11 @@ import {
   extractPaperFromZotero,
   type ExtractInput,
 } from "./extract";
+import {
+  groundAnswerToPaper,
+  sentencesFromChunks,
+  sentencesFromIndex,
+} from "./groundAnswer";
 import { retrieve, type RetrieveOptions } from "./retrieve";
 import { findLatestIndexForPaper, loadIndex, saveIndex } from "./store";
 import type {
@@ -42,7 +50,11 @@ export {
   shouldUseRag,
   evidenceFooter,
   withEvidenceAnswer,
+  groundAnswerToPaper,
+  sentencesFromIndex,
+  sentencesFromChunks,
   enrichEvidenceWithPages,
+  enrichEvidenceWithRects,
   buildIndexDiagnostics,
   formatIndexDiagnosticsDetail,
 };

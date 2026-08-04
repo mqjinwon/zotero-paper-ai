@@ -99,20 +99,100 @@ function emptyResult(): RagQueryResult {
   };
 }
 
+/** Max cite targets when stuffing a short paper. */
+const STUFF_CITE_CAP = 12;
+/** Soft cap: how many children from the same parent become separate cites. */
+const MAX_PER_PARENT = 3;
+
+/**
+ * Pick diverse child/sentence units as cite targets (not one blob per parent).
+ * Prefers units with anchorText + page; spreads across sections.
+ */
+export function selectCiteTargets(
+  units: IndexedChunk[],
+  maxCites: number,
+): IndexedChunk[] {
+  if (!units.length || maxCites <= 0) return [];
+  const scored = units.map((c, i) => {
+    let s = 0;
+    if (c.kind === "abstract") s += 3;
+    if (c.anchorText && c.anchorText.length >= 24) s += 2;
+    if (c.pageStart != null) s += 1;
+    if (c.sentStart != null) s += 0.5;
+    // Mild order preference (earlier sections often abstract/intro)
+    s += Math.max(0, 0.5 - i * 0.001);
+    return { c, s, i };
+  });
+  scored.sort((a, b) => b.s - a.s || a.i - b.i);
+
+  const out: IndexedChunk[] = [];
+  const perParent = new Map<string, number>();
+  const seenSection = new Map<string, number>();
+
+  // First pass: diversity by section
+  for (const { c } of scored) {
+    if (out.length >= maxCites) break;
+    const sec = (c.section || "").toLowerCase();
+    const nSec = seenSection.get(sec) || 0;
+    if (nSec >= 2) continue;
+    const pKey = c.parentId || c.id;
+    const nPar = perParent.get(pKey) || 0;
+    if (nPar >= MAX_PER_PARENT) continue;
+    out.push(c);
+    seenSection.set(sec, nSec + 1);
+    perParent.set(pKey, nPar + 1);
+  }
+  // Second pass: fill remaining by score
+  if (out.length < maxCites) {
+    const have = new Set(out.map((c) => c.id));
+    for (const { c } of scored) {
+      if (out.length >= maxCites) break;
+      if (have.has(c.id)) continue;
+      const pKey = c.parentId || c.id;
+      const nPar = perParent.get(pKey) || 0;
+      if (nPar >= MAX_PER_PARENT) continue;
+      out.push(c);
+      have.add(c.id);
+      perParent.set(pKey, nPar + 1);
+    }
+  }
+  return out;
+}
+
+/**
+ * Short-doc path: full parent text for reading only.
+ * Linking is post-hoc against the full index sentence list (groundAnswer).
+ */
 function stuffParents(
   index: PaperIndex,
   parents: IndexedChunk[],
 ): RagQueryResult {
-  const evidence: RetrievedEvidence[] = parents.map((c, i) => ({
-    chunk: c,
-    score: 1 - i * 0.001,
-    contextText: c.text,
-    cite: citeOf(c),
-  }));
+  const fullPaper = parents
+    .map((p) => {
+      const sec = p.section.startsWith("§") ? p.section : `§${p.section}`;
+      return `## ${sec}\n${p.text.trim()}`;
+    })
+    .filter((b) => b.length > 8)
+    .join("\n\n");
+
+  // Keep a few parent units as evidence metadata (diagnostics / fallback), not cite ids
+  const evidence: RetrievedEvidence[] = parents
+    .slice(0, STUFF_CITE_CAP)
+    .map((c, i) => ({
+      chunk: c,
+      score: 1 - i * 0.001,
+      contextText: c.text,
+      cite: citeOf(c),
+      pageIndex0:
+        c.pageStart != null && c.pageStart >= 1 ? c.pageStart - 1 : undefined,
+    }));
+
   return {
     mode: "stuff",
     evidence,
-    contextBlock: formatContextBlock(evidence, index.title),
+    contextBlock: formatContextBlock([], index.title, {
+      fullPaper: fullPaper || undefined,
+    }),
     stats: {
       chunkCount: index.chunks.length,
       retrieved: evidence.length,
@@ -156,7 +236,11 @@ function pinSection(
     chunk: unit,
     score,
     contextText: parent?.text || unit.text,
-    cite: citeOf(parent || unit),
+    cite: citeOf(unit),
+    pageIndex0:
+      unit.pageStart != null && unit.pageStart >= 1
+        ? unit.pageStart - 1
+        : undefined,
   };
   if (unshift) picked.unshift(ev);
   else picked.push(ev);
@@ -176,27 +260,38 @@ function expandTopK(
 
   const parentsById = parentMap(index);
   const picked: RetrievedEvidence[] = [];
-  const seenParent = new Set<string>();
+  const seenChild = new Set<string>();
+  const perParent = new Map<string, number>();
   const hasPositive = ranked.some((r) => r.s > 0);
 
   for (const { c, s } of ranked) {
     if (picked.length >= topK) break;
     // Skip zero-score tail once we already have hits (less noise)
     if (hasPositive && s <= 0) continue;
+    if (seenChild.has(c.id)) continue;
+    const pKey = c.parentId || c.id;
+    const nPar = perParent.get(pKey) || 0;
+    // Allow multiple sentence-level cites from same section (cap)
+    if (nPar >= MAX_PER_PARENT) continue;
     const parent = c.parentId ? parentsById.get(c.parentId) : undefined;
     const contextText = parent?.text || c.text;
-    const key = parent?.id || c.id;
-    if (seenParent.has(key) && parent) continue;
-    seenParent.add(key);
+    seenChild.add(c.id);
+    perParent.set(pKey, nPar + 1);
     picked.push({
       chunk: c,
       score: s,
       contextText,
-      cite: citeOf(parent || c),
+      // Cite target is the child/sentence unit (precise), not the whole parent
+      cite: citeOf(c),
+      pageIndex0:
+        c.pageStart != null && c.pageStart >= 1 ? c.pageStart - 1 : undefined,
     });
   }
 
   // Overview / empty-hit safety: always ground in abstract (+ conclusion)
+  const seenParent = new Set<string>(
+    [...perParent.entries()].filter(([, n]) => n > 0).map(([k]) => k),
+  );
   if (overview || !picked.length) {
     pinSection(
       searchUnits,

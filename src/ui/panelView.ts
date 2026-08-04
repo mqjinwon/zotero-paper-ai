@@ -220,22 +220,80 @@ export const PANEL_CSS = `
 .paperai-pane .pai-md hr {
   border: none; border-top: 1px solid #e0e0e0; margin: 0.6em 0;
 }
-.paperai-pane .pai-md a.paperai-cite,
-.paperai-pane .pai-md a[href^="#paperai-page-"],
-.paperai-pane .pai-md a[href="#paperai-cite"] {
+/* Phrase hyperlinks (preferred): the claim words themselves */
+.paperai-pane .pai-md a.paperai-cite-phrase {
   color: #1557b0;
   text-decoration: underline;
+  text-decoration-thickness: 1px;
   text-underline-offset: 2px;
   cursor: pointer;
   font-weight: 600;
-  /* long quote snippets wrap cleanly inside bubbles */
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  white-space: normal;
   word-break: break-word;
 }
-.paperai-pane .pai-md a.paperai-cite:hover,
-.paperai-pane .pai-md a[href^="#paperai-page-"]:hover {
+.paperai-pane .pai-md a.paperai-cite-phrase:hover {
   color: #0b3d91;
   background: #e8f0fe;
   border-radius: 2px;
+}
+/* Compact chip only for edge fallbacks */
+.paperai-pane .pai-md a.paperai-cite-chip,
+.paperai-pane .pai-md a[href^="#paperai-page-"],
+.paperai-pane .pai-md a[href="#paperai-cite"] {
+  color: #1557b0;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85em;
+  line-height: 1.2;
+  padding: 0 4px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: #e8f0fe;
+  white-space: nowrap;
+  vertical-align: baseline;
+  word-break: normal;
+}
+.paperai-pane .pai-md a.paperai-cite-chip:hover,
+.paperai-pane .pai-md a[href^="#paperai-page-"]:hover {
+  color: #0b3d91;
+  background: #d2e3fc;
+}
+.paperai-pane .pai-md a.paperai-cite {
+  color: #1557b0;
+  cursor: pointer;
+  font-weight: 600;
+}
+.paperai-pane .paperai-evidence-tray {
+  margin-top: 0.55em;
+  padding: 0.35em 0.5em;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: 11.5px;
+  color: #444;
+}
+.paperai-pane .paperai-evidence-tray > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #555;
+  list-style: none;
+}
+.paperai-pane .paperai-evidence-tray > summary::-webkit-details-marker { display: none; }
+.paperai-pane .paperai-evidence-list {
+  margin: 0.4em 0 0.1em 1.1em;
+  padding: 0;
+}
+.paperai-pane .paperai-evidence-list li {
+  margin: 0.25em 0;
+  line-height: 1.35;
+}
+.paperai-pane .pai-cite-meta {
+  color: #777;
+  font-size: 10.5px;
 }
 .paperai-pane .pai-md blockquote {
   margin: 0.4em 0; padding: 0.2em 0 0.2em 0.75em;
@@ -468,7 +526,7 @@ export function buildPanelDom(
     el(doc, "div", { class: "pai-card pai-index-card" }, [
       el(doc, "h4", null, ["논문 인덱스 (RAG)"]),
       el(doc, "p", { class: "pai-muted" }, [
-        "한 번 인덱싱하면 로컬 RAG 캐시(data dir / paperai/rag)에 저장됩니다. 채팅·sticky는 논문 노트(Zotero Sync). 안 눌러도 첫 질문 때 자동 인덱싱합니다. 인용은 [E1] 문장 링크(텍스트 locate).",
+        "한 번 인덱싱하면 로컬 RAG 캐시(data dir / paperai/rag)에 저장됩니다. 채팅·sticky는 논문 노트(Zotero Sync). 안 눌러도 첫 질문 때 자동 인덱싱합니다. 인용은 근거 문구 하이퍼링크(클릭 → PDF 문장, 호버 → 발췌).",
       ]),
       el(
         doc,

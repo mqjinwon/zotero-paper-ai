@@ -20,22 +20,24 @@ Compact facts for coding agents. Prose to user: Korean; code/comments/IDs: Engli
 2. **Region outline**: paint **inside PDF page `div`** (absolute, p2v via `convertToViewportPoint`). Shell SVG desyncs with left/right panels.
 3. **Connector lines**: shell SVG; anchors via page rects + `mozInnerScreenX` cross-iframe map. Scroll: all docs + PDF.js `eventBus` + interval.
 4. **Cite click**: `event.target` may be **Text node** → use `parentElement` then `closest`. Wire panel root click **and** mousedown.
-5. **Navigate page**: `reader.navigate({ pageIndex })` (0-based) first; then PDF.js `currentPageNumber` / `scrollPageIntoView` with Xray waive. Links: HTML `<a class="paperai-cite" data-page data-preview href="#paperai-page-N">` — not MD titles (quotes break).
+5. **Cite navigate (official first)**: `reader.navigate({ pageIndex, position: { pageIndex, rects } })` — same Location contract as sticky. Then flash rects. Fallback: quote locate → page-only. Links: post-hoc phrase anchors whose `data-preview` is a **real paper sentence** (`groundAnswerToPaper`), not RAG cite ids.
 6. **Markdown paint**: `setMarkdownHtml` = DOMParser + `importNode` (item-pane rejects naive `innerHTML` for tables).
-7. **Enrich pages** before footer: search + Body(n) heuristic; **do not rewrite `e.cite`** (must stay `[§Body (1)]` for linkify).
+7. **Ground after answer**: extract claim spans → match paper sentences (BM25 + token overlap gate) → link only when score high; jump needle = paper sentence.
 
 ## RAG
 
 - Index: `{dataDir}/rag/` (default `{Zotero.DataDirectory}/paperai/rag`); policy bump rebuilds (`CHUNK_POLICY`).
-- Chunk policy `section-para-sent-v4`: cites like `[§Introduction ¶2 s3 p.2]` (section · paragraph · sentence · page).
+- Chunk policy `section-para-sent-v5`. RAG supplies **reading context** only; links are **not** pre-built evidence slots.
 - Auto-highlight: `src/rag/autoHighlight/*` — 4 classes (claim/method/novelty/caveat), tags `paper-ai-auto`, Zotero Annotations.saveFromJSON.
 - Prefer PDF.js per-page extract when reader open (page map for cites). Fulltext alone → weaker `pageStart`.
-- Stuff short papers; else BM25/hybrid. Answers: inline `[§…]` linkify only (no evidence dump footer).
+- Stuff short papers: full parent context for the model. Else BM25/hybrid passages for context.
+- Answers: free prose → **post-hoc paper-sentence grounding** (`src/rag/groundAnswer.ts`) + optional evidence tray.
 - Figure: `figureContext` captions/discussions + `attachRagContext`.
 
 ## Prompts (`src/llm/prompts.ts`)
 
-- Role: **research co-reader**, paper-grounded, cite `[§…]`, LaTeX preserved.
+- Role: **research co-reader**, paper-grounded free prose, LaTeX preserved.
+- No model cite ids / `#cite-N` protocol — grounding is post-hoc.
 - Explain: what / why here / assumptions.
 - Figure: name fig, axes, **claim in paper**.
 - Chat: answer first, short, evidence or say missing.

@@ -67,6 +67,10 @@ export interface RetrievedEvidence {
   /** Expanded parent text used in generation context */
   contextText: string;
   cite: string;
+  /** 0-based page for Zotero Reader.navigate (when known). */
+  pageIndex0?: number;
+  /** PDF user-space rects for precise navigate({ position }). */
+  rects?: number[][];
 }
 
 export interface RagQueryResult {

@@ -8,10 +8,11 @@ import { runTask } from "../llm/router";
 import { getOrCreateClient } from "../llm/fastTranslate";
 import type { ImagePayload } from "../llm/types";
 import {
-  enrichEvidenceWithPages,
-  ensureIndex,
-  withEvidenceAnswer,
-} from "../rag/index";
+  groundAnswerToPaper,
+  splitSentences,
+  type PaperSentence,
+} from "../rag/groundAnswer";
+import { ensureIndex } from "../rag/index";
 import { getOpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
 import { diag } from "../utils/diagnostics";
@@ -276,14 +277,17 @@ export async function runFigureStickyTask(opts: {
       },
       reasoningEffort: cfg.reasoningEffort,
     });
-    if (rag.evidence?.length && answer) {
-      try {
-        await enrichEvidenceWithPages(rag.evidence);
-      } catch {
-        /* ignore */
+    if (answer) {
+      const sents: PaperSentence[] = [...(rag.paperSentences || [])];
+      // Also ground against figure caption / discussion text when present
+      if (bundle.directBlock?.trim()) {
+        for (const t of splitSentences(bundle.directBlock)) {
+          if (t.length >= 28) sents.push({ text: t, section: "Figure" });
+        }
       }
-      // Inline [E#] / legacy [§…] links only — no trailing evidence dump
-      answer = withEvidenceAnswer(answer, rag.evidence).answer;
+      if (sents.length) {
+        answer = groundAnswerToPaper(answer, sents).answer;
+      }
     }
     answer = answer || "(empty)";
     await updateStickyAnswer(itemKey, sticky.id, answer, reader, {

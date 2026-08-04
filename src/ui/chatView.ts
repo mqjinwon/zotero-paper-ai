@@ -92,9 +92,61 @@ const CHAT_VIEW_CSS = `
 .pai-chat-view .pai-muted { color: #666; font-size: 11px; }
 .pai-chat-view .katex { font-size: 1.05em; }
 .pai-chat-view .katex-display { margin: 0.45em 0; overflow-x: auto; }
-.pai-chat-view a.paperai-cite {
-  color: #1557b0; font-weight: 600; cursor: pointer; text-decoration: underline;
+.pai-chat-view a.paperai-cite-phrase {
+  color: #1557b0;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: transparent;
+  white-space: normal;
 }
+.pai-chat-view a.paperai-cite-phrase:hover {
+  background: #e8f0fe;
+  color: #0b3d91;
+  border-radius: 2px;
+}
+.pai-chat-view a.paperai-cite-chip {
+  color: #1557b0;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.85em;
+  padding: 0 4px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: #e8f0fe;
+  white-space: nowrap;
+}
+.pai-chat-view a.paperai-cite-chip:hover {
+  background: #d2e3fc;
+  color: #0b3d91;
+}
+.pai-chat-view a.paperai-cite {
+  color: #1557b0;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pai-chat-view .paperai-evidence-tray {
+  margin-top: 0.5em;
+  padding: 0.35em 0.5em;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: 11.5px;
+  color: #444;
+}
+.pai-chat-view .paperai-evidence-tray > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #555;
+}
+.pai-chat-view .paperai-evidence-list {
+  margin: 0.35em 0 0.1em 1.1em;
+  padding: 0;
+}
+.pai-chat-view .paperai-evidence-list li { margin: 0.2em 0; line-height: 1.35; }
+.pai-chat-view .pai-cite-meta { color: #777; font-size: 10.5px; }
 `;
 
 function el(

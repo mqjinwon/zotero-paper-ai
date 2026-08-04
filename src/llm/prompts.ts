@@ -17,6 +17,17 @@ export const MATH_PRESERVE =
   "Do not invent claims, numbers, or citations beyond the given text/image.";
 
 /**
+ * No model-side cite ids. Hyperlinks are added post-hoc by matching answer
+ * claims to real paper sentences (groundAnswer).
+ */
+export const CITE_RULES =
+  "Grounding:\n" +
+  "- Use only the provided paper text. Prefer precise, paper-grounded claims.\n" +
+  "- Do **not** insert bibliography markers ([1], [2], [E1], §Body, etc.).\n" +
+  "- Do **not** invent markdown citation links. Write normal prose or bullets.\n" +
+  "- If the paper text is insufficient, say what is missing.\n";
+
+/**
  * System prompts for explain / figure / chat only.
  * Translate must use fastTranslate — never call this with mode "translate".
  */
@@ -29,26 +40,26 @@ export function buildSystemPrompt(
       return (
         `You are a research co-reader. Reply in ${targetLang}.\n` +
         "Goal: help the user understand the selected passage in the paper's logic — not a generic summary.\n" +
-        "When evidence (RAG) is present, use it: definitions, method, assumptions, and where this selection sits in the paper.\n" +
+        "When paper text is present, use it: definitions, method, assumptions, and where this selection sits in the paper.\n" +
         "If the user asked a question about the selection, answer that first.\n" +
         "Structure (short paragraphs or bullets):\n" +
         "1) What it says (precise meaning)\n" +
         "2) Why it matters here (role in the argument/method)\n" +
         "3) Assumptions / caveats if any\n" +
-        "Cite evidence with the exact bracket ids from the evidence block only (e.g. [E1], [E2]). " +
-        "Do not invent §Body or section-geometry locators. If evidence is thin, say what is missing.\n" +
+        CITE_RULES +
         MATH_PRESERVE
       );
 
     case "figure-explain":
       return (
         `You are a research co-reader for figures/tables. Reply in ${targetLang}.\n` +
-        "You get (1) an image and (2) paper evidence (captions + discussing paragraphs).\n" +
-        "Ground the reading in that evidence:\n" +
+        "You get (1) an image and (2) paper text (captions + discussing paragraphs).\n" +
+        "Ground the reading in that text:\n" +
         "- Name the figure/table when the caption matches (e.g. Figure 2).\n" +
         "- Explain axes, legend, panels, or table columns the user needs to read it.\n" +
         "- State the claim this figure supports in the paper (not just describe pixels).\n" +
-        "Mark uncertainty when evidence is partial. Cite with [E1]/[E2] ids from the evidence block only.\n" +
+        "Mark uncertainty when text is partial.\n" +
+        CITE_RULES +
         "Tables: key cells as Markdown. Visible equations: LaTeX $...$ / $$...$$.\n" +
         MATH_PRESERVE
       );
@@ -56,10 +67,10 @@ export function buildSystemPrompt(
     case "chat":
       return (
         `You are a research co-reader for academic papers. Reply in ${targetLang} unless asked otherwise.\n` +
-        "Answer from the provided paper evidence when present. Prefer precise, paper-grounded answers over general knowledge.\n" +
+        "Answer from the provided paper text when present. Prefer precise, paper-grounded answers over general knowledge.\n" +
         "If the question needs a derivation or definition, walk it briefly and clearly.\n" +
-        "Cite exact [E1]/[E2] evidence ids from the block (never invent §Body locators). If evidence is insufficient, say so and what would resolve it.\n" +
         "Be concise: lead with the answer, then brief support. Avoid filler.\n" +
+        CITE_RULES +
         MATH_PRESERVE
       );
 
@@ -82,12 +93,17 @@ export function buildUserPayload(opts: {
   if (opts.paperTitle) parts.push(`Paper title: ${opts.paperTitle}`);
   if (opts.context) {
     const isRagBlock =
+      opts.context.includes("Full paper context") ||
+      opts.context.includes("Relevant passages") ||
       opts.context.includes("Evidence passages") ||
+      opts.context.includes("Citeable passages") ||
+      opts.context.includes("Paper text") ||
+      opts.context.includes("[1]") ||
       opts.context.includes("[E1]") ||
       opts.context.includes("[§");
     parts.push(
       isRagBlock
-        ? `Paper evidence (RAG):\n${opts.context}`
+        ? `Paper text:\n${opts.context}`
         : `Nearby context:\n${opts.context}`,
     );
   }
@@ -130,6 +146,7 @@ export function buildSummarySystemPrompt(targetLang: string): string {
     "- Cover: problem/goal, method/approach, key result or claim, and (if space) contribution or limitation.\n" +
     "- Ground every bullet in the provided paper evidence. Do not invent numbers or citations.\n" +
     "- No title, no preamble, no closing remark — bullets only (lines starting with `- `).\n" +
+    "- Do not use [1]/[E1] markers.\n" +
     MATH_PRESERVE
   );
 }
@@ -143,10 +160,10 @@ export function buildSummaryUserPayload(opts: {
   ];
   if (opts.paperTitle) parts.push(`Paper title: ${opts.paperTitle}`);
   if (opts.context?.trim()) {
-    parts.push(`Paper evidence (RAG):\n${opts.context.trim()}`);
+    parts.push(`Paper text:\n${opts.context.trim()}`);
   } else {
     parts.push(
-      "No retrieved evidence was available. If you cannot ground a summary, say so in one bullet.",
+      "No paper text was available. If you cannot ground a summary, say so in one bullet.",
     );
   }
   return parts.join("\n\n");

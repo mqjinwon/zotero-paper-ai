@@ -1,6 +1,6 @@
 /**
  * Section → paragraph → sentence hierarchical chunking (parent–child).
- * Policy: section-para-sent-v5 — broader heading detection; cites use [E#] at retrieve time.
+ * Policy: section-para-sent-v5 — broader heading detection; cites use [1] at retrieve time.
  */
 
 import { CHUNK_POLICY, type Chunk, type ExtractedDoc } from "./types";
