@@ -1,5 +1,6 @@
-# Dependabot: keep main stable. Majors that break peers are ignored;
-# non-majors are grouped; open PR flood is capped.
+# Dependabot: keep main stable.
+# - Safe non-majors are grouped.
+# - High-risk packages (runtime API / CSS breaking) open as individual PRs only.
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates
 
 version: 2
@@ -8,12 +9,20 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     groups:
-      all-non-major:
+      # Dev tooling + low-risk patch/minor only (no runtime API breakers).
+      safe-non-major:
         update-types:
           - "minor"
           - "patch"
+        exclude-patterns:
+          # Import path / API breakers — upgrade only with code changes + verify
+          - "zotero-plugin-toolkit"
+          - "zotero-plugin-scaffold"
+          - "zotero-types"
+          # CSS class prefix / render breaking minors (e.g. 0.16 → 0.18)
+          - "katex"
     ignore:
       # Major bumps break peers / require deliberate upgrades
       - dependency-name: "typescript"
@@ -31,6 +40,8 @@ updates:
       - dependency-name: "zotero-types"
         update-types: ["version-update:semver-major"]
       - dependency-name: "zotero-plugin-toolkit"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "katex"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
