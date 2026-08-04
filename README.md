@@ -7,14 +7,14 @@ AI co-reader for Zotero 7–9 PDF tabs: translate, explain, chat, paper summary,
 
 ## Features
 
-| Feature              | What it does                                      |
-| -------------------- | ------------------------------------------------- |
-| **Translate**        | Fast selection translate (no RAG)                 |
-| **Explain / Figure** | Selection or area → sticky note on the PDF        |
-| **Chat**             | Paper Q&A with RAG; history syncs as a child note |
-| **Summary**          | 3–5 bullet paper summary (synced note)            |
-| **Auto-highlight**   | 4-class claim/method/novelty/caveat annotations   |
-| **Cites**            | Inline `[§Section ¶n s…]` links jump in the PDF   |
+| Feature              | What it does                                             |
+| -------------------- | -------------------------------------------------------- |
+| **Translate**        | Fast selection translate (no RAG)                        |
+| **Explain / Figure** | Selection or area → sticky note on the PDF               |
+| **Chat**             | Paper Q&A with RAG; history syncs as a child note        |
+| **Summary**          | 3–5 bullet paper summary (synced note)                   |
+| **Auto-highlight**   | 4-class claim/method/novelty/caveat annotations          |
+| **Cites**            | Post-hoc phrase links to real paper sentences in the PDF |
 
 ## Install
 
@@ -23,6 +23,8 @@ AI co-reader for Zotero 7–9 PDF tabs: translate, explain, chat, paper summary,
 3. Restart Zotero.
 
 Auth (once): `grok login` and/or `codex login` (or set a Grok API key in prefs).
+
+**Changelog:** [CHANGELOG.md](CHANGELOG.md) (English). Each GitHub Release body is filled from the matching version section.
 
 ## Quick start
 

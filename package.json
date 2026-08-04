@@ -38,6 +38,7 @@
     "gen:katex-css": "node -e \"const fs=require('fs');const c=fs.readFileSync('node_modules/katex/dist/katex.min.css','utf8');fs.writeFileSync('src/ui/katexCssRaw.ts','// Auto-generated from katex/dist/katex.min.css\\nexport default '+JSON.stringify(c)+' as string;\\n');\"",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "deploy:local": "bash scripts/deploy-local.sh",
+    "changelog:extract": "node scripts/extract-changelog.mjs",
     "smoke:auth": "tsx scripts/smoke-auth.ts",
     "update-deps": "npm update --save"
   },

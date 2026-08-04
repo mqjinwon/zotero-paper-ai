@@ -70,7 +70,7 @@ How most Zotero plugins (template / scaffold) ship XPI — **not** by committing
 | Asset                     | Role                                                                          |
 | ------------------------- | ----------------------------------------------------------------------------- |
 | `*.xpi`                   | Installable plugin (per version tag `vX.Y.Z`)                                 |
-| Release notes             | Changelog for that version                                                    |
+| Release notes             | English notes from **`CHANGELOG.md`** for that version (auto-applied in CI)   |
 | Special tag **`release`** | Holds **`update.json`** / **`update-beta.json`** only (auto-update manifests) |
 
 URLs (this repo’s `zotero-plugin.config.ts`):
@@ -78,18 +78,26 @@ URLs (this repo’s `zotero-plugin.config.ts`):
 - XPI: `…/releases/download/v{{version}}/paper-ai-colleague-v{{version}}.xpi` (`xpiName` in `zotero-plugin.config.ts`)
 - Updates: `…/releases/download/release/update.json` (stable) or `update-beta.json` (prerelease)
 
+### Changelog (English, required for releases)
+
+- Source of truth: repo root **`CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com/) style).
+- Before cutting a release: move items from `## [Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD` and update compare links at the bottom.
+- Extract notes: `node scripts/extract-changelog.mjs 0.1.2` (or `v0.1.2`).
+- On tag push, workflow job **Changelog → release notes** runs `gh release edit` with that section so the GitHub Release body is never `_No significant changes._`.
+
 ### Standard flow (this repo)
 
 ```
 1) Work on branch → PR → merge main
-2) On clean main:  npm run release
+2) Edit CHANGELOG.md (Unreleased → version section, English)
+3) On clean main:  npx zotero-plugin release patch -y   # or minor / major
      = bumpp: bump package.json version → commit → tag vX.Y.Z → push tag
-3) Tag push triggers .github/workflows/release.yml
-     = npm run build  then  npm run release (scaffold publish)
-4) CI creates/updates GitHub Release + uploads XPI (+ updates the `release` tag manifests)
+4) Tag push triggers .github/workflows/release.yml
+     = build + scaffold publish XPI
+     = then set Release body from CHANGELOG.md
 ```
 
-- Workflow: `.github/workflows/release.yml` → reusable `zotero-plugin-dev/workflows/.../release-plugin.yml`
+- Workflow: `.github/workflows/release.yml` → reusable release-plugin + `release-notes` job.
 - Needs `permissions: contents: write` (and issues/PR write for release comments).
 - **Do not** hand-upload only an XPI and forget version/`update.json` — Zotero auto-update depends on manifests.
 - **Do not** commit `.scaffold/build/*.xpi` into git; CI builds artifacts.

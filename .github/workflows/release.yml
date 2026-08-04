@@ -13,9 +13,50 @@ permissions:
 jobs:
   create-release:
     uses: zotero-plugin-dev/workflows/.github/workflows/release-plugin.yml@main
-    # You can customize any of the inputs here.
-    # If you omit an input, its default value will be used.
     with:
       build: "npm run build"
       release: "npm run release"
     secrets: inherit
+
+  # Attach CHANGELOG.md section as the GitHub Release body (English).
+  release-notes:
+    name: Changelog → release notes
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract notes for this tag
+        id: notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VER="${TAG#v}"
+          OUT=$(mktemp)
+          if node scripts/extract-changelog.mjs "$VER" > "$OUT"; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "body<<CHANGELOG_EOF"
+              cat "$OUT"
+              echo "CHANGELOG_EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "No CHANGELOG section for $VER — leaving existing release notes."
+          fi
+
+      - name: Update GitHub Release body
+        if: steps.notes.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          BODY: ${{ steps.notes.outputs.body }}
+        run: |
+          set -euo pipefail
+          # Write body via file so multiline / quotes are safe
+          NOTES_FILE=$(mktemp)
+          printf '%s\n' "$BODY" > "$NOTES_FILE"
+          gh release edit "$TAG" --notes-file "$NOTES_FILE"
+          echo "Updated release notes for $TAG from CHANGELOG.md"
