@@ -20,6 +20,8 @@ class Addon {
       rows: Array<{ [dataKey: string]: string }>;
     };
     dialog?: DialogHelper;
+    /** Detached chat DialogHelper (singleton handle). */
+    chatDialog?: DialogHelper;
   };
   // Lifecycle hooks
   public hooks: typeof hooks;

@@ -41,7 +41,13 @@ describe("prompts", () => {
   it("explain prompt is paper-grounded and structured", () => {
     const s = buildSystemPrompt("explain", "ko");
     assert.match(s, /co-reader|research/i);
-    assert.match(s, /assumption|evidence|RAG|\[§/i);
+    assert.match(s, /evidence|\[E1\]|assumption/i);
+  });
+
+  it("chat prompt asks for [E#] cites not §Body", () => {
+    const s = buildSystemPrompt("chat", "ko");
+    assert.match(s, /\[E1\]|\[E2\]/);
+    assert.match(s, /§Body|never invent|Do not invent/i);
   });
 
   it("summary prompt asks for 3–5 bullets only", () => {
@@ -81,9 +87,28 @@ describe("markdown math", () => {
     assert.equal(n.includes("$x^2$"), true);
   });
 
+  it("normalizes math fences and equation env", () => {
+    const fence = normalizeMathDelimiters("```math\nE=mc^2\n```");
+    assert.match(fence, /\$\$[\s\S]*E=mc\^2[\s\S]*\$\$/);
+    const eq = normalizeMathDelimiters(
+      "\\begin{equation}\na+b=c\n\\end{equation}",
+    );
+    assert.match(eq, /\$\$[\s\S]*a\+b=c[\s\S]*\$\$/);
+    assert.doesNotMatch(eq, /begin\{equation\}/);
+  });
+
   it("renders display math with KaTeX", () => {
     const html = renderMarkdown("Energy: $$E=mc^2$$");
     assert.match(html, /katex/);
+  });
+
+  it("renders fenced latex and align via KaTeX", () => {
+    const fence = renderMarkdown("```latex\n\\frac{1}{2}\n```");
+    assert.match(fence, /katex/);
+    const align = renderMarkdown(
+      "\\begin{aligned}\nx&=1\\\\\ny&=2\n\\end{aligned}",
+    );
+    assert.match(align, /katex/);
   });
 });
 

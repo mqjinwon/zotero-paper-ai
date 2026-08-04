@@ -17,8 +17,10 @@ import {
 } from "../../src/rag/bm25.ts";
 import {
   chunkDocument,
+  isSectionHeadingLine,
   sectionNames,
   CHUNK_POLICY,
+  splitIntoSections,
 } from "../../src/rag/chunk.ts";
 import {
   hasEmbedCredentials,
@@ -29,11 +31,23 @@ import {
 } from "../../src/rag/config.ts";
 import {
   citeOf,
+  citePreview,
   evidenceFooter,
+  evidenceId,
   formatContextBlock,
   linkifyBareCites,
+  stampEvidenceIds,
   withEvidenceAnswer,
 } from "../../src/rag/context.ts";
+import {
+  buildIndexDiagnostics,
+  formatIndexDiagnosticsDetail,
+} from "../../src/rag/diagnostics.ts";
+import {
+  bodyProportionalPage,
+  enrichEvidenceWithPages,
+  softSectionPageHint,
+} from "../../src/rag/enrichPages.ts";
 import { cosine, hybridScores, normalizeScores } from "../../src/rag/embed.ts";
 import { buildExtractedDoc, EmptyExtractError } from "../../src/rag/extract.ts";
 import {
@@ -157,7 +171,7 @@ describe("rag extract", () => {
   });
 });
 
-describe("rag chunk section-para-sent-v4", () => {
+describe("rag chunk section-para-sent-v5", () => {
   it("covers all major sections of fixture paper", () => {
     const doc = fixtureDoc();
     const chunks = chunkDocument(doc);
@@ -184,13 +198,66 @@ describe("rag chunk section-para-sent-v4", () => {
     );
     assert.ok(parents.length >= 5);
     assert.ok(children.length >= 5);
-    assert.equal(CHUNK_POLICY, "section-para-sent-v4");
-    // Children should carry paragraph locators when possible
+    assert.equal(CHUNK_POLICY, "section-para-sent-v5");
     const withPara = children.filter((c) => c.paraStart != null);
     assert.ok(withPara.length >= 3, "expected children with paraStart");
   });
 
-  it("citeOf includes paragraph/sentence locators", () => {
+  it("numbered and ALL-CAPS headings split multi-section (not all Body)", () => {
+    assert.equal(isSectionHeadingLine("2 Method"), true);
+    assert.equal(isSectionHeadingLine("2. Method"), true);
+    assert.equal(isSectionHeadingLine("IV. Experiments"), true);
+    assert.equal(isSectionHeadingLine("RELATED WORK"), true);
+    assert.equal(
+      isSectionHeadingLine(
+        "The residual force is large when the robot walks on stairs carefully.",
+      ),
+      false,
+    );
+
+    const text = `
+Title Line
+
+Abstract
+We study residual learning for locomotion under uncertain contact.
+
+1 Introduction
+Legged robots must adapt. Prior work is limited.
+
+2 Method
+We combine MPC with residual forces on the rigid body planner.
+
+3 EXPERIMENTS
+We evaluate on stairs and slopes with three seeds.
+
+4 Conclusion
+Residual forces improve tracking.
+`.trim();
+    const secs = splitIntoSections(text);
+    const names = secs.map((s) => s.name.toLowerCase());
+    assert.ok(names.some((n) => n.includes("abstract")));
+    assert.ok(names.some((n) => /introduction|1 introduction/.test(n)));
+    assert.ok(names.some((n) => /method|2 method/.test(n)));
+    assert.ok(names.some((n) => /experiment|3 experiment/.test(n)));
+    // Must not collapse to a single Body pack
+    assert.ok(
+      secs.length >= 4,
+      `expected multi-section, got ${names.join("|")}`,
+    );
+    assert.ok(
+      !secs.every((s) => /^body$/i.test(s.name)),
+      "must not be all Body",
+    );
+
+    const chunks = chunkDocument(
+      buildExtractedDoc({ paperId: "num-head", fullText: text }),
+    );
+    const sn = sectionNames(chunks).map((n) => n.toLowerCase());
+    assert.ok(sn.some((n) => n.includes("method")));
+    assert.ok(!sn.every((n) => n === "body" || n.startsWith("body ")));
+  });
+
+  it("citeOf legacy form still has paragraph/sentence locators", () => {
     const cite = citeOf({
       id: "1",
       text: "We study residual forces.",
@@ -368,7 +435,7 @@ describe("rag no-key index + query", () => {
       });
       assert.ok(result.contextBlock.length > 0);
       assert.ok(result.evidence.length > 0);
-      assert.match(result.contextBlock, /\[§/);
+      assert.match(result.contextBlock, /\[E\d+\]/);
       assert.equal(result.stats.usedDense, false);
       // short fixture → stuff mode
       assert.ok(result.mode === "stuff" || result.mode === "rag");
@@ -405,7 +472,7 @@ describe("rag no-key index + query", () => {
         result.contextBlock.includes("UNIQUE3"),
       "expected UNIQUE3 section ranked high",
     );
-    assert.match(result.contextBlock, /\[§/);
+    assert.match(result.contextBlock, /\[E\d+\]/);
   });
 });
 
@@ -484,7 +551,9 @@ describe("rag hybrid vs bm25 order", () => {
 });
 
 describe("rag context cites + wiring", () => {
-  it("cite labels use §Section form", () => {
+  it("primary evidence ids are [E1]…; legacy citeOf still § form", () => {
+    assert.equal(evidenceId(0), "[E1]");
+    assert.equal(evidenceId(2), "[E3]");
     const cite = citeOf({
       id: "a",
       text: "x",
@@ -496,54 +565,74 @@ describe("rag context cites + wiring", () => {
     assert.equal(cite, "[§Method p.3]");
   });
 
-  it("formatContextBlock includes evidence and paper title", () => {
-    const block = formatContextBlock(
-      [
-        {
-          chunk: {
-            id: "1",
-            text: "body",
-            section: "Abstract",
-            kind: "abstract",
-            tokenEstimate: 5,
-          },
-          score: 0.9,
-          contextText: "We present residual force learning.",
-          cite: "[§Abstract]",
-        },
-      ],
-      "Demo Paper",
-    );
-    assert.match(block, /Demo Paper/);
-    assert.match(block, /\[§Abstract\]/);
-    assert.match(block, /residual force/);
-  });
-
-  it("evidenceFooter linkifies cites with page + preview", () => {
-    const footer = evidenceFooter([
+  it("formatContextBlock stamps [E#] + Quote needle (not §Body)", () => {
+    const evidence = [
       {
         chunk: {
           id: "1",
           text: "body",
-          section: "Body (1)",
-          kind: "parent",
+          section: "Abstract",
+          kind: "abstract" as const,
           tokenEstimate: 5,
-          pageStart: 2,
-          pageEnd: 3,
+          anchorText: "We present residual force learning for locomotion.",
         },
-        score: 1,
+        score: 0.9,
         contextText: "We present residual force learning for locomotion.",
-        cite: "[§Body (1)]",
+        cite: "[§Abstract]",
       },
-    ]);
+    ];
+    const block = formatContextBlock(evidence, "Demo Paper");
+    assert.match(block, /Demo Paper/);
+    assert.match(block, /\[E1\]/);
+    assert.match(block, /Quote:.*residual force/i);
+    assert.match(block, /residual force/);
+    assert.doesNotMatch(block, /\[§Body/);
+    assert.equal(evidence[0].cite, "[E1]");
+  });
+
+  it("evidenceFooter linkifies E cites with page + preview", () => {
+    const footer = evidenceFooter(
+      stampEvidenceIds([
+        {
+          chunk: {
+            id: "1",
+            text: "body",
+            section: "Body (1)",
+            kind: "parent",
+            tokenEstimate: 5,
+            pageStart: 2,
+            pageEnd: 3,
+            anchorText:
+              "We present residual force learning for locomotion on rough terrain.",
+          },
+          score: 1,
+          contextText: "We present residual force learning for locomotion.",
+          cite: "pending",
+        },
+      ]),
+    );
     assert.match(footer, /근거/);
     assert.match(footer, /#paperai-page-2/);
-    assert.match(footer, /p\.2–3/);
+    assert.match(footer, /E1/);
     assert.match(footer, /residual force/);
   });
 
-  it("linkifyBareCites turns [§…] into HTML cite anchors", () => {
-    const evidence = [
+  it("citePreview builds a sentence-level locate needle", () => {
+    const long =
+      "We present a residual force learning method that combines model-based planning with learned residuals on rough terrain.";
+    const p1 = citePreview(`${long} Later we ablate gains.`);
+    assert.match(p1, /residual force learning/);
+    assert.doesNotMatch(p1, /Later we ablate/);
+    const p2 = citePreview(
+      "We present residual forces. Later we ablate gains on rough terrain carefully.",
+    );
+    assert.match(p2, /We present residual forces/);
+    assert.match(p2, /Later we ablate/);
+    assert.ok(p1.length >= 24 && p2.length >= 24);
+  });
+
+  it("linkifyBareCites turns [E1] into HTML with quote data-preview", () => {
+    const evidence = stampEvidenceIds([
       {
         chunk: {
           id: "1",
@@ -552,24 +641,49 @@ describe("rag context cites + wiring", () => {
           kind: "parent" as const,
           tokenEstimate: 1,
           pageStart: 1,
+          anchorText:
+            "We present residual force learning for quadruped locomotion on rough terrain.",
         },
         score: 1,
         contextText: "Abstract under 1 ms",
-        cite: "[§Body (1)]",
+        cite: "x",
       },
-    ];
-    const out = linkifyBareCites(
-      "속도는 under 1 ms 입니다 [§Body (1)].",
-      evidence,
-    );
+    ]);
+    const out = linkifyBareCites("속도는 under 1 ms 입니다 [E1].", evidence);
     assert.match(out, /href="#paperai-page-1"/);
     assert.match(out, /data-page="1"/);
     assert.match(out, /class="paperai-cite"/);
-    assert.doesNotMatch(out, /\[§Body \(1\)\](?!<)/);
+    assert.match(out, /data-preview="[^"]*residual force/);
+    assert.match(out, /E1/);
+    assert.match(out, /residual force/);
+    assert.doesNotMatch(out, /\[E1\](?!<)/);
   });
 
-  it("withEvidenceAnswer linkifies body without evidence dump", () => {
-    const { answer, ragFooter } = withEvidenceAnswer("see [§Method p.3]", [
+  it("linkifyBareCites still maps legacy [§Body] aliases", () => {
+    const evidence = stampEvidenceIds([
+      {
+        chunk: {
+          id: "1",
+          text: "t",
+          section: "Body (1)",
+          kind: "parent" as const,
+          tokenEstimate: 1,
+          pageStart: 1,
+          anchorText:
+            "We present residual force learning for quadruped locomotion on rough terrain.",
+        },
+        score: 1,
+        contextText: "Abstract under 1 ms",
+        cite: "x",
+      },
+    ]);
+    const out = linkifyBareCites("see [§Body (1)].", evidence);
+    assert.match(out, /class="paperai-cite"/);
+    assert.match(out, /data-preview="[^"]*residual force/);
+  });
+
+  it("withEvidenceAnswer linkifies [E1] without evidence dump", () => {
+    const { answer, ragFooter } = withEvidenceAnswer("see [E1]", [
       {
         chunk: {
           id: "1",
@@ -578,23 +692,23 @@ describe("rag context cites + wiring", () => {
           kind: "parent",
           tokenEstimate: 1,
           pageStart: 3,
+          anchorText: "MPC residual forces improve tracking on stairs.",
         },
         score: 1,
         contextText: "MPC residual forces",
-        cite: "[§Method p.3]",
+        cite: "old",
       },
     ]);
     assert.equal(ragFooter, "");
     assert.match(answer, /#paperai-page-3/);
+    assert.match(answer, /E1|paperai-cite/);
     assert.doesNotMatch(answer, /——/);
-    assert.doesNotMatch(answer, /근거 \(라벨/);
-    // preview stays on title/hover only — not a trailing dump section
     assert.doesNotMatch(answer, /근거 \(라벨 클릭/);
   });
 
   it("withEvidenceAnswer can still append footer when asked", () => {
     const { answer, ragFooter } = withEvidenceAnswer(
-      "see [§Method p.3]",
+      "see [E1]",
       [
         {
           chunk: {
@@ -642,7 +756,7 @@ describe("rag context cites + wiring", () => {
       paperTitle: "P",
     });
     assert.match(chat, /Paper evidence \(RAG\)/);
-    assert.match(chat, /\[§Method/);
+    assert.match(chat, /\[E1\]/);
 
     const fig = buildUserPayload({
       mode: "figure-explain",
@@ -650,6 +764,7 @@ describe("rag context cites + wiring", () => {
       hasImage: true,
     });
     assert.match(fig, /Paper evidence \(RAG\)/);
+    assert.match(fig, /\[E1\]/);
 
     const tr = buildUserPayload({
       mode: "translate",
@@ -657,6 +772,58 @@ describe("rag context cites + wiring", () => {
     });
     assert.doesNotMatch(tr, /Paper evidence/);
     assert.doesNotMatch(tr, /Evidence passages/);
+  });
+});
+
+describe("rag page enrich + diagnostics", () => {
+  it("bodyProportionalPage is disabled (never invents Body pages)", () => {
+    assert.equal(bodyProportionalPage("Body (1)", 12, 5), null);
+    assert.equal(bodyProportionalPage("Body (3)", 20, 4), null);
+    assert.equal(softSectionPageHint("Body (2)", 10), null);
+    assert.equal(softSectionPageHint("Abstract", 10), 1);
+  });
+
+  it("enrichEvidenceWithPages does not invent pages without PDF/text", async () => {
+    const evidence = [
+      {
+        chunk: {
+          id: "1",
+          text: "We invent nothing here about pages.",
+          section: "Body (3)",
+          kind: "parent" as const,
+          tokenEstimate: 10,
+          // no pageStart
+        },
+        score: 1,
+        contextText: "We invent nothing here about pages.",
+        cite: "[E1]",
+      },
+    ];
+    const r = await enrichEvidenceWithPages(evidence);
+    assert.equal(evidence[0].chunk.pageStart, undefined);
+    assert.ok(
+      r.via === "no-pdf" || r.via === "search-miss" || r.via === "none",
+    );
+    assert.equal(r.filled, 0);
+  });
+
+  it("buildIndexDiagnostics summarizes sections, counts, anchors", async () => {
+    const doc = fixtureDoc("diag1");
+    const index = await buildIndexFromDoc(
+      doc,
+      mergeRagPrefs({ embeddingProvider: "none", ragRetrievalMode: "bm25" }),
+    );
+    const d = buildIndexDiagnostics(index);
+    assert.ok(d.sectionNames.length >= 3);
+    assert.ok(d.totalChunks > 0);
+    assert.ok(d.parentCount + d.childCount + d.abstractCount > 0);
+    assert.ok(d.sampleAnchors.length >= 1);
+    assert.match(d.summaryLine, /섹션|chunks/i);
+    assert.match(formatIndexDiagnosticsDetail(d), /anchors:/);
+    assert.ok(
+      d.bodyShare < 0.85,
+      `fixture should not be mostly Body: ${d.bodyShare}`,
+    );
   });
 });
 

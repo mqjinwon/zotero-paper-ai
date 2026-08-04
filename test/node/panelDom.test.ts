@@ -54,6 +54,10 @@ describe("panel DOM (linkedom / shipped buildPanelDom)", () => {
       "sticky list present",
     );
     assert.ok(root.querySelector("[data-pai-summary]"), "summary body present");
+    assert.ok(
+      root.querySelector("[data-pai-index-diag]"),
+      "index diagnostics readout present",
+    );
     const sumBtn = root.querySelector("[data-act='summarize']");
     assert.match(sumBtn?.textContent || "", /요약 생성/);
 
@@ -63,6 +67,46 @@ describe("panel DOM (linkedom / shipped buildPanelDom)", () => {
 
     const indexBtn = root.querySelector("[data-act='index-paper']");
     assert.equal(indexBtn?.textContent, INDEX_BTN_IDLE);
+
+    // Index card is first among .pai-card
+    const cards = Array.from(root.querySelectorAll(".pai-card"));
+    assert.ok(cards.length >= 4);
+    assert.match(cards[0].textContent || "", /논문 인덱스/);
+
+    // Clear / note live on the chat card header (not global title bar)
+    const chatCard = root.querySelector(".pai-chat");
+    assert.ok(chatCard, "chat card present");
+    assert.ok(
+      chatCard!.querySelector("[data-act='chat-detach']"),
+      "detach button on chat card",
+    );
+    assert.ok(
+      chatCard!.querySelector("[data-act='clear']"),
+      "clear on chat card",
+    );
+    assert.ok(
+      chatCard!.querySelector("[data-act='note']"),
+      "note on chat card",
+    );
+    assert.ok(
+      !chatCard!.querySelector("[data-act='diag-copy']"),
+      "diag-copy not on chat card",
+    );
+
+    // Chat log is resizable
+    const log = root.querySelector("[data-pai-log]") as HTMLElement | null;
+    assert.ok(log);
+    // CSS is in a <style> tag; check stylesheet text for resize
+    const styles = Array.from(root.querySelectorAll("style"))
+      .map((s) => s.textContent || "")
+      .join("\n");
+    assert.match(styles, /\.pai-log[\s\S]*resize:\s*vertical/);
+
+    // Diagnostics copy sits with bottom status row
+    const statusRow = root.querySelector(".pai-status-row");
+    assert.ok(statusRow, "status row present");
+    assert.ok(statusRow!.querySelector("[data-pai-status]"));
+    assert.ok(statusRow!.querySelector("[data-act='diag-copy']"));
 
     // Must not be empty shell
     assert.ok((root.textContent || "").length > 80);

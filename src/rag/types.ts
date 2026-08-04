@@ -110,7 +110,8 @@ export const DEFAULT_RAG_PREFS: RagPrefs = {
 };
 
 /** Bump when chunk defaults change so caches rebuild. */
-export const CHUNK_POLICY = "section-para-sent-v4";
+/** Bumped when section split / cite policy changes enough to prefer re-index. */
+export const CHUNK_POLICY = "section-para-sent-v5";
 export const INDEX_VERSION = 1 as const;
 
 /** Modes that use full-paper RAG evidence. */

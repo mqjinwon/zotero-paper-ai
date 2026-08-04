@@ -227,7 +227,7 @@ export async function runPaperTask(
 
   let ragFooter = "";
   if (rag.evidence?.length && answer) {
-    // Resolve §Body labels → page numbers (search + Body(n) heuristic)
+    // Resolve pages via PDF text search only (no Body-proportional invent)
     try {
       const { filled, via } = await enrichEvidenceWithPages(rag.evidence);
       input.onStatus?.(
@@ -238,7 +238,7 @@ export async function runPaperTask(
     } catch {
       /* still linkify without pages */
     }
-    // Inline [§…] links only — no trailing evidence dump
+    // Inline [E#] / legacy [§…] links only — no trailing evidence dump
     const applied = withEvidenceAnswer(answer, rag.evidence);
     answer = applied.answer;
     ragFooter = applied.ragFooter;

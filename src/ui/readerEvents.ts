@@ -580,7 +580,7 @@ export async function runStickyTask(opts: {
       } catch {
         /* ignore */
       }
-      // Inline [§…] links only — no trailing evidence dump
+      // Inline [E#] / legacy [§…] links only — no trailing evidence dump
       answer = withEvidenceAnswer(answer, rag.evidence).answer;
     }
     diag("sticky", "explain RAG", {

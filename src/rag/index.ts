@@ -12,6 +12,10 @@ import {
   shouldUseRag,
 } from "./config";
 import { evidenceFooter, withEvidenceAnswer } from "./context";
+import {
+  buildIndexDiagnostics,
+  formatIndexDiagnosticsDetail,
+} from "./diagnostics";
 import { enrichEvidenceWithPages } from "./enrichPages";
 import { embedTexts } from "./embed";
 import {
@@ -39,6 +43,8 @@ export {
   evidenceFooter,
   withEvidenceAnswer,
   enrichEvidenceWithPages,
+  buildIndexDiagnostics,
+  formatIndexDiagnosticsDetail,
 };
 export type { RagPrefs, RagQueryResult, PaperIndex, ExtractedDoc };
 

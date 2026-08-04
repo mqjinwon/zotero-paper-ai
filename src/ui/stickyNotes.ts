@@ -11,11 +11,8 @@ import {
 } from "../storage/itemNoteStore";
 import { resolveReadableFile } from "../utils/dataDir";
 import { diag } from "../utils/diagnostics";
+import { getKatexCss } from "./katexCss";
 import { setMarkdownHtmlWithCites } from "./markdown";
-// Bundled as text via esbuild loader
-
-// @ts-expect-error css imported as string
-import katexCssRaw from "katex/dist/katex.min.css";
 
 export type { StickyKind, StickyNote, StickyPdfLocation } from "./sticky/types";
 export {
@@ -337,13 +334,8 @@ function ensureStickyDocStyles(doc: Document): void {
   if (doc.getElementById("paperai-sticky-style")) return;
   const style = doc.createElement("style");
   style.id = "paperai-sticky-style";
-  // KaTeX font paths → CDN so math renders in reader iframe
-  const katexCss = String(katexCssRaw || "").replace(
-    /url\((?:\.\/)?fonts\//g,
-    "url(https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/fonts/",
-  );
   style.textContent = `
-${katexCss}
+${getKatexCss()}
 /* Selectable sticky text — override PDF.js user-select:none */
 .paperai-sticky-body,
 .paperai-sticky-body *,

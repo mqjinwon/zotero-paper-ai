@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import katex from "katex";
 import { diag } from "../utils/diagnostics";
+import { navigateReaderToEvidence } from "./citeNavigate";
 
 // Explicit GFM (tables, autolinks, strikethrough)
 marked.setOptions({
@@ -8,14 +9,54 @@ marked.setOptions({
   breaks: false,
 });
 
-/** Normalize common LaTeX delimiters to $ / $$ for KaTeX. */
+/**
+ * Normalize Mathpix / KaTeX-friendly delimiters to $ / $$ for rendering.
+ * Handles: \( \), \[ \], ```math/latex/tex fences, equation/align envs.
+ */
 export function normalizeMathDelimiters(md: string): string {
   let s = md;
+  const protectedBlocks: string[] = [];
+  const protect = (chunk: string): string => {
+    const i = protectedBlocks.length;
+    protectedBlocks.push(chunk);
+    return `@@MATH_PROTECT_${i}@@`;
+  };
+
+  // Keep existing $$ … $$ intact while rewriting other forms
+  s = s.replace(/\$\$[\s\S]+?\$\$/g, (m) => protect(m));
+
+  // Fenced math (Mathpix / common LLM habit)
   s = s.replace(
-    /\\\[([\s\S]*?)\\\]/g,
-    (_m, inner) => `\n$$\n${inner.trim()}\n$$\n`,
+    /```(?:math|latex|tex|katex)\s*\r?\n([\s\S]*?)```/gi,
+    (_m, inner) => protect(`\n$$\n${String(inner).trim()}\n$$\n`),
   );
-  s = s.replace(/\\\(([\s\S]*?)\\\)/g, (_m, inner) => `$${inner.trim()}$`);
+
+  // Display: \[ … \]
+  s = s.replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner) =>
+    protect(`\n$$\n${String(inner).trim()}\n$$\n`),
+  );
+
+  // Inline: \( … \)
+  s = s.replace(/\\\(([\s\S]*?)\\\)/g, (_m, inner) =>
+    protect(`$${String(inner).trim()}$`),
+  );
+
+  // \begin{equation[*]} … \end{equation[*]} → display math (strip env; KaTeX-friendly)
+  s = s.replace(
+    /\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}/g,
+    (_m, inner) => protect(`\n$$\n${String(inner).trim()}\n$$\n`),
+  );
+
+  // align / aligned / gather / multline — keep env, wrap in $$
+  s = s.replace(
+    /\\begin\{(align\*?|aligned|gather\*?|multline\*?)\}([\s\S]*?)\\end\{\1\}/g,
+    (_m, env, body) =>
+      protect(`\n$$\n\\begin{${env}}${body}\\end{${env}}\n$$\n`),
+  );
+
+  s = s.replace(/@@MATH_PROTECT_(\d+)@@/g, (_m, i) => {
+    return protectedBlocks[Number(i)] ?? "";
+  });
   return s;
 }
 
@@ -25,6 +66,7 @@ function renderKatex(tex: string, displayMode: boolean): string {
       displayMode,
       throwOnError: false,
       strict: "ignore",
+      trust: false,
       output: "html",
     });
   } catch {
@@ -178,264 +220,16 @@ export function setMarkdownHtml(host: HTMLElement, md: string): boolean {
   return false;
 }
 
-// ── Cite navigation ─────────────────────────────────────────────────────────
-
-function resolveZotero(): any {
-  const g = globalThis as any;
-  if (g.Zotero) return g.Zotero;
-  try {
-    let w: any = g.window || g;
-    for (let i = 0; i < 6 && w; i++) {
-      if (w.Zotero) return w.Zotero;
-      w = w.parent !== w ? w.parent : null;
-    }
-  } catch {
-    /* cross-origin */
-  }
-  try {
-    return g.top?.Zotero || null;
-  } catch {
-    return null;
-  }
-}
-
-/** Unwrap Xray wrappers so PDF.js methods are callable from chrome. */
-
-function unwrap(obj: any): any {
-  if (!obj) return obj;
-  try {
-    const Cu = (globalThis as any).Cu || (globalThis as any).Components?.utils;
-    if (Cu?.waiveXrays) return Cu.waiveXrays(obj);
-  } catch {
-    /* ignore */
-  }
-  try {
-    return obj.wrappedJSObject || obj;
-  } catch {
-    return obj;
-  }
-}
-
-function collectReaders(Z: any): any[] {
-  const out: unknown[] = [];
-  try {
-    const main = Z?.getMainWindow?.() || null;
-    const tabId =
-      main?.Zotero_Tabs?.selectedID ??
-      (globalThis as any).Zotero_Tabs?.selectedID;
-    if (tabId != null && Z?.Reader?.getByTabID) {
-      const r = Z.Reader.getByTabID(tabId);
-      if (r) out.push(r);
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    for (const r of Z?.Reader?._readers || []) {
-      if (!out.includes(r)) out.push(r);
-    }
-  } catch {
-    /* ignore */
-  }
-  return out;
-}
-
-function windowsFromReader(reader: any): Window[] {
-  const wins: Window[] = [];
-  const push = (w: unknown) => {
-    if (w && typeof (w as Window).document !== "undefined") {
-      if (!wins.includes(w as Window)) wins.push(w as Window);
-    }
-  };
-  try {
-    push(reader?._internalReader?._primaryView?._iframeWindow);
-    push(reader?._internalReader?._primaryView?._iframe?.contentWindow);
-    push(reader?._internalReader?._lastView?._iframeWindow);
-    push(reader?._iframeWindow);
-    push(reader?._iframe?.contentWindow);
-    push(reader?._window);
-    const shell =
-      reader?._iframeWindow?.document || reader?._iframe?.contentDocument;
-    for (const fr of Array.from(shell?.querySelectorAll?.("iframe") || [])) {
-      push((fr as HTMLIFrameElement).contentWindow);
-    }
-  } catch {
-    /* ignore */
-  }
-  return wins;
-}
-
-function pdfAppFromWindow(w: Window | null | undefined): any {
-  if (!w) return null;
-  try {
-    const raw = unwrap(w);
-    const app =
-      raw?.PDFViewerApplication ||
-      (w as unknown as { PDFViewerApplication?: unknown }).PDFViewerApplication;
-    return unwrap(app) || app || null;
-  } catch {
-    return null;
-  }
-}
-
-/** Jump PDF.js to 1-based page number. Returns true only if page actually changes or matches. */
-
-function pdfJsGoToPage(app: any, pageLabel: number): boolean {
-  if (!app || !Number.isFinite(pageLabel) || pageLabel < 1) return false;
-  const n = Math.floor(pageLabel);
-  try {
-    const viewer = unwrap(app.pdfViewer) || app.pdfViewer;
-    if (!viewer) {
-      if ("page" in app) {
-        app.page = n;
-        return true;
-      }
-      return false;
-    }
-    // Prefer currentPageNumber assignment (most reliable across PDF.js versions)
-    try {
-      viewer.currentPageNumber = n;
-    } catch {
-      /* ignore */
-    }
-    try {
-      if (typeof viewer.scrollPageIntoView === "function") {
-        viewer.scrollPageIntoView({ pageNumber: n });
-      }
-    } catch {
-      /* ignore */
-    }
-    try {
-      app.page = n;
-    } catch {
-      /* ignore */
-    }
-    // Verify
-    const cur = Number(viewer.currentPageNumber || app.page || 0);
-    return cur === n || cur > 0; // cur>0 means viewer responded
-  } catch (e) {
-    diag("cite", "pdfJsGoToPage fail", String(e));
-    return false;
-  }
-}
-
 /**
- * Navigate active reader to a 1-based PDF page.
- * Same primitive path as sticky list focus (reader.navigate + PDF.js).
+ * Navigate active reader to evidence: sentence-level text locate (auto-HL)
+ * + temporary yellow flash. Falls back to page-only when quote is missing.
  */
 export async function navigateReaderToPage(
   pageLabel: number,
   _host?: HTMLElement | null,
   preview?: string,
 ): Promise<boolean> {
-  const page = Math.floor(Number(pageLabel));
-  const Z = resolveZotero();
-  const readers = collectReaders(Z);
-  diag("cite", "navigate start", {
-    page,
-    readers: readers.length,
-    hasPreview: !!(preview && preview.length > 4),
-  });
-
-  // 1) Official API first (same as sticky focus — proven in this codebase)
-  if (page >= 1) {
-    for (const reader of readers) {
-      if (!reader?.navigate) continue;
-      try {
-        await reader.navigate({ pageIndex: page - 1 });
-        diag("cite", "reader.navigate pageIndex ok", { page });
-        return true;
-      } catch (e) {
-        diag("cite", "reader.navigate fail", String(e));
-      }
-      try {
-        await reader.navigate({
-          pageIndex: page - 1,
-          pageLabel: String(page),
-        });
-        return true;
-      } catch {
-        /* continue */
-      }
-    }
-  }
-
-  // 2) Direct PDF.js on every reader window (waive Xrays)
-  if (page >= 1) {
-    for (const reader of readers) {
-      for (const w of windowsFromReader(reader)) {
-        const app = pdfAppFromWindow(w);
-        if (pdfJsGoToPage(app, page)) {
-          diag("cite", "pdf.js direct ok", { page });
-          try {
-            w.focus?.();
-          } catch {
-            /* ignore */
-          }
-          return true;
-        }
-      }
-    }
-  }
-
-  // 3) Text search → page
-  if (preview && preview.length >= 8) {
-    const words = preview
-      .replace(/[^\w\s.,;:%-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(" ")
-      .filter((w) => w.length > 2);
-    const needle = (
-      words.length >= 4
-        ? words.slice(
-            Math.min(3, words.length - 6),
-            Math.min(3, words.length - 6) + 8,
-          )
-        : words
-    )
-      .join(" ")
-      .toLowerCase();
-    if (needle.length >= 8) {
-      for (const reader of readers) {
-        for (const w of windowsFromReader(reader)) {
-          const app = pdfAppFromWindow(w);
-          const doc = app?.pdfDocument;
-          if (!doc) continue;
-          const max = Math.min(doc.numPages || 0, 120);
-          const short = needle.slice(0, 24);
-          for (let p = 1; p <= max; p++) {
-            try {
-              const pg = await doc.getPage(p);
-              const tc = await pg.getTextContent();
-              const text = (tc.items || [])
-                .map((it: { str?: string }) => it.str || "")
-                .join(" ")
-                .toLowerCase()
-                .replace(/\s+/g, " ");
-              if (text.includes(short)) {
-                if (pdfJsGoToPage(app, p)) {
-                  diag("cite", "search nav ok", { p, short });
-                  return true;
-                }
-                try {
-                  await reader.navigate({ pageIndex: p - 1 });
-                  return true;
-                } catch {
-                  /* continue */
-                }
-              }
-            } catch {
-              /* next page */
-            }
-          }
-        }
-      }
-    }
-  }
-
-  diag("cite", "navigate failed", { page, readers: readers.length });
-  return false;
+  return navigateReaderToEvidence(pageLabel, preview);
 }
 
 const CITE_SEL =
@@ -508,12 +302,17 @@ export function handleCiteClick(ev: Event, root?: HTMLElement | null): boolean {
   diag("cite", "click", {
     page,
     href: a.getAttribute("href"),
-    text: (a.textContent || "").slice(0, 40),
+    text: (a.textContent || "").slice(0, 60),
+    preview: (preview || "").slice(0, 48),
   });
 
-  void navigateReaderToPage(page, a, preview).then((ok) => {
+  void navigateReaderToEvidence(page, preview).then((ok) => {
     flashCite(a, ok);
-    diag("cite", "click result", { page, ok });
+    diag("cite", "click result", {
+      page,
+      ok,
+      hasQuote: !!(preview && preview.length >= 12),
+    });
   });
   return true;
 }

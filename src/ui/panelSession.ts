@@ -69,7 +69,13 @@ export function setSessionBusy(session: PanelSession, on: boolean): void {
   session.root.querySelectorAll("button[data-act]").forEach((el: Element) => {
     const btn = el as HTMLButtonElement;
     const act = btn.getAttribute("data-act") || "";
-    if (act === "clear" || act === "note" || act === "diag-copy") return;
+    if (
+      act === "clear" ||
+      act === "note" ||
+      act === "diag-copy" ||
+      act === "chat-detach"
+    )
+      return;
     if (act === "index-paper" && session.indexBusy) return;
     if (on) {
       btn.setAttribute("aria-busy", "true");

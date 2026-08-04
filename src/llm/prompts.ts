@@ -3,9 +3,17 @@ import type { TaskMode } from "./types";
 /** Modes that build system prompts via runTask (translate uses fastTranslate only). */
 export type PromptMode = Exclude<TaskMode, "translate">;
 
-/** Shared rules for reading/explaining papers (not used by fast translate). */
+/**
+ * Shared math rules: Mathpix-style Markdown + KaTeX-compatible LaTeX.
+ * Panel and sticky notes render $ / $$ via KaTeX.
+ */
 export const MATH_PRESERVE =
-  "Keep equations as LaTeX: $inline$ or $$display$$. " +
+  "Math (Mathpix-style Markdown, rendered with KaTeX):\n" +
+  "- Inline: $E=mc^2$, $\\frac{a}{b}$, $\\mathbf{x}$\n" +
+  "- Display: $$\\nabla\\cdot\\mathbf{E}=\\rho/\\varepsilon_0$$\n" +
+  "- Multi-line: $$\\begin{aligned} ... \\end{aligned}$$\n" +
+  "- Use real LaTeX commands (\\frac, \\sum_{i=1}^{n}, \\partial, \\left(\\right)). " +
+  "Do not use code fences for equations, and avoid Unicode-only pseudo-math for multi-symbol formulas.\n" +
   "Do not invent claims, numbers, or citations beyond the given text/image.";
 
 /**
@@ -27,7 +35,8 @@ export function buildSystemPrompt(
         "1) What it says (precise meaning)\n" +
         "2) Why it matters here (role in the argument/method)\n" +
         "3) Assumptions / caveats if any\n" +
-        "Cite evidence labels exactly as given (e.g. [§Introduction ¶2 s3] or [§Method ¶1]) when you rely on them. If evidence is thin, say what is missing.\n" +
+        "Cite evidence with the exact bracket ids from the evidence block only (e.g. [E1], [E2]). " +
+        "Do not invent §Body or section-geometry locators. If evidence is thin, say what is missing.\n" +
         MATH_PRESERVE
       );
 
@@ -39,7 +48,7 @@ export function buildSystemPrompt(
         "- Name the figure/table when the caption matches (e.g. Figure 2).\n" +
         "- Explain axes, legend, panels, or table columns the user needs to read it.\n" +
         "- State the claim this figure supports in the paper (not just describe pixels).\n" +
-        "Mark uncertainty when evidence is partial. Prefer [§…] labels from the evidence block.\n" +
+        "Mark uncertainty when evidence is partial. Cite with [E1]/[E2] ids from the evidence block only.\n" +
         "Tables: key cells as Markdown. Visible equations: LaTeX $...$ / $$...$$.\n" +
         MATH_PRESERVE
       );
@@ -49,7 +58,7 @@ export function buildSystemPrompt(
         `You are a research co-reader for academic papers. Reply in ${targetLang} unless asked otherwise.\n` +
         "Answer from the provided paper evidence when present. Prefer precise, paper-grounded answers over general knowledge.\n" +
         "If the question needs a derivation or definition, walk it briefly and clearly.\n" +
-        "Cite exact [§…] labels from evidence (prefer ¶paragraph / s sentence forms when present). If evidence is insufficient, say so and what would resolve it.\n" +
+        "Cite exact [E1]/[E2] evidence ids from the block (never invent §Body locators). If evidence is insufficient, say so and what would resolve it.\n" +
         "Be concise: lead with the answer, then brief support. Avoid filler.\n" +
         MATH_PRESERVE
       );
@@ -73,7 +82,9 @@ export function buildUserPayload(opts: {
   if (opts.paperTitle) parts.push(`Paper title: ${opts.paperTitle}`);
   if (opts.context) {
     const isRagBlock =
-      opts.context.includes("Evidence passages") || opts.context.includes("[§");
+      opts.context.includes("Evidence passages") ||
+      opts.context.includes("[E1]") ||
+      opts.context.includes("[§");
     parts.push(
       isRagBlock
         ? `Paper evidence (RAG):\n${opts.context}`

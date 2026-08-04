@@ -5,7 +5,11 @@
 
 import { config } from "../../package.json";
 import { createZoteroFileStore } from "../auth/fileStore";
-import { ensureIndex } from "../rag/index";
+import {
+  buildIndexDiagnostics,
+  ensureIndex,
+  formatIndexDiagnosticsDetail,
+} from "../rag/index";
 import { describeOpenPaperRef, getOpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
 import { findLatestIndexForPaper, formatIndexLabel } from "../rag/store";
@@ -55,6 +59,8 @@ import {
   loadChatHistory,
   saveChatHistory,
 } from "./chatStore";
+import { getActiveChatModel, getChatModelForItem } from "./chatModel";
+import { openChatDetachWindow } from "./chatDetach";
 import { runPaperSummary } from "./paperSummary";
 import {
   deleteAllAutoAnnotations,
@@ -101,6 +107,25 @@ function scheduleRenderLog(session: PanelSession): void {
       diag("chat", "renderLog fatal", String(e));
     }
   }, 80);
+}
+
+/** Push pane session history into shared ChatModel so detach window mirrors. */
+function syncModelFromSession(session: PanelSession): void {
+  const key = chatItemKey();
+  if (!key) return;
+  try {
+    const model = getChatModelForItem(key);
+    // Share the same array reference when possible
+    if (model.history !== session.history) {
+      model.history.length = 0;
+      model.history.push(...session.history);
+    }
+    model.lastAnswer = session.lastAnswer;
+    model.busy = session.busy;
+    model.notify();
+  } catch (e) {
+    diag("chat", "syncModelFromSession fail", String(e));
+  }
 }
 
 function paintAssistantBody(doc: Document, content: string): HTMLElement {
@@ -230,6 +255,25 @@ export function mountPanel(doc: Document, container: HTMLElement): void {
     );
 
     setSessionStatus(session, "준비됨 — 버튼이 활성화되어 있습니다.");
+    // Mirror shared model → pane when detach (or model) updates history
+    try {
+      const model = getActiveChatModel();
+      if (model) {
+        const unsub = model.subscribe(() => {
+          if (!session.root.isConnected) return;
+          // Detach may own the same array; always re-paint pane
+          if (model.history !== session.history) {
+            session.history.length = 0;
+            session.history.push(...model.history);
+          }
+          session.lastAnswer = model.lastAnswer;
+          scheduleRenderLog(session);
+        });
+        (session as { __chatUnsub?: () => void }).__chatUnsub = unsub;
+      }
+    } catch {
+      /* ignore */
+    }
     void refreshIndexButtonStatus(session);
     void refreshStickyList(session);
     void restoreChatHistory(session);
@@ -275,16 +319,21 @@ async function restoreChatHistory(session: PanelSession): Promise<void> {
     );
     return;
   }
-  const hist = await loadChatHistory(key);
-  if (!hist.length) return;
-  session.history = hist;
-  const last = [...hist].reverse().find((h) => h.role === "assistant");
-  session.lastAnswer = last?.content || "";
+  const model = getChatModelForItem(key);
+  await model.restore();
+  // Bind session to shared history array
+  session.history.length = 0;
+  session.history.push(...model.history);
+  // Prefer live shared array for subsequent mutations
+  (session as { history: typeof session.history }).history = model.history;
+  session.lastAnswer = model.lastAnswer;
   renderLog(session);
-  setSessionStatus(
-    session,
-    `대화 기록 ${hist.length}턴 복원 (이 논문 노트 · Zotero 동기화)`,
-  );
+  if (model.history.length) {
+    setSessionStatus(
+      session,
+      `대화 기록 ${model.history.length}턴 복원 (이 논문 노트 · Zotero 동기화)`,
+    );
+  }
 }
 
 function paintSummaryBody(session: PanelSession, markdown: string): void {
@@ -387,12 +436,25 @@ function handleAct(
   act: string,
   el?: HTMLElement | null,
 ): void {
+  if (act === "chat-detach") {
+    void openChatDetachWindow().then(() => {
+      setSessionStatus(
+        session,
+        "별도 창에서 대화할 수 있습니다. 기록은 패널과 공유됩니다.",
+      );
+    });
+    return;
+  }
   if (act === "clear") {
     session.history.length = 0;
     session.lastAnswer = "";
     renderLog(session);
     const key = chatItemKey();
-    if (key) void clearChatHistory(key);
+    if (key) {
+      const model = getChatModelForItem(key);
+      model.clearLocal();
+      void clearChatHistory(key);
+    }
     setSessionStatus(session, "대화를 지웠습니다 (저장본 포함).");
     return;
   }
@@ -792,25 +854,40 @@ async function refreshStickyList(session: PanelSession): Promise<void> {
   }
 }
 
+function setIndexDiagText(root: HTMLElement, text: string): void {
+  const el = root.querySelector("[data-pai-index-diag]") as HTMLElement | null;
+  if (el) el.textContent = text;
+}
+
 /** Show cached index on panel open (no re-extract). */
 async function refreshIndexButtonStatus(session: PanelSession): Promise<void> {
   try {
     const paper = getOpenPaperRef();
     if (!paper?.itemKey) {
       setIndexButtonState(session.root, "idle");
+      setIndexDiagText(
+        session.root,
+        "인덱싱 후 섹션·chunk 진단이 여기 표시됩니다.",
+      );
       return;
     }
     const store = createZoteroFileStore();
     const cached = await findLatestIndexForPaper(store, paper.itemKey);
     if (!cached) {
       setIndexButtonState(session.root, "idle");
+      setIndexDiagText(
+        session.root,
+        "캐시 없음 — 인덱싱하면 섹션·Body 비율·anchor 샘플이 표시됩니다.",
+      );
       return;
     }
     const label = formatIndexLabel(cached);
     setIndexButtonState(session.root, "ready", label);
+    const d = buildIndexDiagnostics(cached);
+    setIndexDiagText(session.root, d.summaryLine);
     setSessionStatus(
       session,
-      `${label} · 로컬 캐시 사용. 재인덱싱이 필요하면 버튼을 다시 누르세요.`,
+      `${label} · 로컬 캐시.\n${formatIndexDiagnosticsDetail(d)}\n재인덱싱이 필요하면 버튼을 다시 누르세요.`,
     );
   } catch {
     /* leave idle */
@@ -855,6 +932,8 @@ async function runManualIndex(session: PanelSession): Promise<void> {
     });
     const label = formatIndexLabel(index).replace("인덱싱 됨", "인덱싱 완료");
     setIndexButtonState(session.root, "ready", label);
+    const d = buildIndexDiagnostics(index);
+    setIndexDiagText(session.root, d.summaryLine);
     const mode = index.retrievalModeUsed === "hybrid" ? "hybrid" : "BM25";
     const n = index.chunks.filter(
       (c) => c.kind === "child" || c.kind === "abstract",
@@ -873,7 +952,8 @@ async function runManualIndex(session: PanelSession): Promise<void> {
       : "";
     setSessionStatus(
       session,
-      `인덱싱 완료 (${mode}, ${n} units)${figHint}. 질문하면 캐시를 씁니다.`,
+      `인덱싱 완료 (${mode}, ${n} units)${figHint}. 질문하면 캐시를 씁니다.\n` +
+        formatIndexDiagnosticsDetail(d),
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -1035,6 +1115,7 @@ async function runAction(
   });
   session.history.push({ role: "assistant", content: "" });
   renderLog(session);
+  if (mode === "chat") syncModelFromSession(session);
   setSessionBusy(session, true);
   setSessionStatus(
     session,
@@ -1070,6 +1151,13 @@ async function runAction(
           last.content += delta;
           // Progressive MD is OK — paint is try/catch + plain fallback per bubble
           scheduleRenderLog(session);
+          if (mode === "chat") {
+            try {
+              getActiveChatModel()?.notify();
+            } catch {
+              /* ignore */
+            }
+          }
         }
       },
       onStatus: (msg) => setSessionStatus(session, msg),
@@ -1091,10 +1179,13 @@ async function runAction(
       setIndexButtonState(session.root, "ready", result.indexLabel);
     }
 
-    // Persist Q&A history for this paper across restarts
+    // Persist Q&A history for this paper across restarts + mirror detach
     if (mode === "chat") {
       const key = chatItemKey();
-      if (key) void saveChatHistory(key, session.history);
+      if (key) {
+        void saveChatHistory(key, session.history);
+        syncModelFromSession(session);
+      }
     }
 
     // Sticky only for explain / figure on the PDF — not translate or chat.

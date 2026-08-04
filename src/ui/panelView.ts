@@ -5,6 +5,7 @@
  */
 
 import { config } from "../../package.json";
+import { getKatexCss } from "./katexCss";
 
 export const INDEX_BTN_IDLE = "이 논문 인덱싱";
 export const INDEX_BTN_RUNNING = "인덱싱 중…";
@@ -120,13 +121,14 @@ export const PANEL_CSS = `
 }
 .paperai-pane .pai-card.pai-chat {
   flex: 1 1 auto;
-  min-height: 420px;
+  min-height: 280px;
 }
 .paperai-pane .pai-log {
-  min-height: 320px;
-  max-height: none;
-  height: min(55vh, 560px);
+  min-height: 160px;
+  max-height: 85vh;
+  height: min(45vh, 480px);
   overflow: auto;
+  resize: vertical;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -134,6 +136,28 @@ export const PANEL_CSS = `
   background: #fafafa;
   border: 1px solid #eee;
   border-radius: 8px;
+  /* corner resize affordance (Firefox / Zotero chrome) */
+  box-sizing: border-box;
+}
+.paperai-pane .pai-log-hint {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: #888;
+  text-align: right;
+}
+.paperai-pane .pai-status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 2px;
+}
+.paperai-pane .pai-status-row .pai-status {
+  flex: 1;
+  min-width: 0;
+}
+.paperai-pane .pai-status-row .pai-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
 }
 .paperai-pane .pai-bubble {
   max-width: 95%; padding: 8px 10px; border-radius: 12px;
@@ -204,6 +228,8 @@ export const PANEL_CSS = `
   text-underline-offset: 2px;
   cursor: pointer;
   font-weight: 600;
+  /* long quote snippets wrap cleanly inside bubbles */
+  word-break: break-word;
 }
 .paperai-pane .pai-md a.paperai-cite:hover,
 .paperai-pane .pai-md a[href^="#paperai-page-"]:hover {
@@ -237,6 +263,20 @@ export const PANEL_CSS = `
   min-height: 1.2em; font-size: 11px; color: #666;
 }
 .paperai-pane .katex { font-size: 1.05em; }
+.paperai-pane .katex-display {
+  margin: 0.45em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+.paperai-pane .paperai-math-fallback {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  background: #fff4e5;
+  color: #8a4b08;
+  padding: 0 3px;
+  border-radius: 3px;
+}
 .paperai-pane .pai-stream {
   color: #333; opacity: 0.95;
 }
@@ -259,6 +299,14 @@ export const PANEL_CSS = `
 }
 .paperai-pane button.pai-btn.pai-index.failed {
   background: #fce8e6; border-color: #f5c2c0; color: #c5221f;
+}
+.paperai-pane .pai-index-diag {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #555;
 }
 .paperai-pane .pai-img-wrap {
   margin: 0 0 8px;
@@ -400,27 +448,53 @@ export function buildPanelDom(
     /* ignore */
   }
 
-  // CSS via textContent (not innerHTML)
+  // CSS via textContent (not innerHTML). KaTeX full stylesheet for math in chat.
   const style = doc.createElement("style");
   style.setAttribute("type", "text/css");
-  style.textContent = PANEL_CSS;
+  style.textContent = `${getKatexCss()}\n${PANEL_CSS}`;
   root.appendChild(style);
 
   const stack = el(doc, "div", { class: "pai-stack" });
 
-  // Head
+  // Head (title only — chat actions live on the chat card)
   stack.appendChild(
     el(doc, "div", { class: "pai-head" }, [
       el(doc, "div", { class: "pai-title" }, ["Paper AI"]),
-      el(doc, "div", { class: "pai-actions" }, [
-        btn(doc, "clear", "대화 지우기", "pai-btn ghost"),
-        btn(doc, "note", "노트 저장", "pai-btn ghost"),
-        btn(doc, "diag-copy", "진단 로그 복사", "pai-btn ghost"),
-      ]),
     ]),
   );
 
-  // Paper summary (top feature)
+  // 1) Index first — primary gate for RAG
+  stack.appendChild(
+    el(doc, "div", { class: "pai-card pai-index-card" }, [
+      el(doc, "h4", null, ["논문 인덱스 (RAG)"]),
+      el(doc, "p", { class: "pai-muted" }, [
+        "한 번 인덱싱하면 로컬 RAG 캐시(data dir / paperai/rag)에 저장됩니다. 채팅·sticky는 논문 노트(Zotero Sync). 안 눌러도 첫 질문 때 자동 인덱싱합니다. 인용은 [E1] 문장 링크(텍스트 locate).",
+      ]),
+      el(
+        doc,
+        "button",
+        {
+          type: "button",
+          class: "pai-btn pai-index primary",
+          "data-act": "index-paper",
+          "data-pai-index": "1",
+          title: "현재 PDF 전체 텍스트를 추출·청킹해 로컬에 저장",
+        },
+        [INDEX_BTN_IDLE],
+      ),
+      el(
+        doc,
+        "p",
+        {
+          class: "pai-muted pai-index-diag",
+          "data-pai-index-diag": "1",
+        },
+        ["인덱싱 후 섹션·chunk 진단이 여기 표시됩니다."],
+      ),
+    ]),
+  );
+
+  // 2) Paper summary
   stack.appendChild(
     el(doc, "div", { class: "pai-card pai-summary" }, [
       el(doc, "div", { class: "pai-head" }, [
@@ -444,7 +518,7 @@ export function buildPanelDom(
     ]),
   );
 
-  // Auto-highlight card
+  // 3) Auto-highlight
   stack.appendChild(
     el(doc, "div", { class: "pai-card pai-autohl" }, [
       el(doc, "div", { class: "pai-head" }, [
@@ -474,29 +548,7 @@ export function buildPanelDom(
     ]),
   );
 
-  // Index card (translate/explain/figure live on PDF reader UI)
-  stack.appendChild(
-    el(doc, "div", { class: "pai-card" }, [
-      el(doc, "h4", null, ["논문 인덱스 (RAG)"]),
-      el(doc, "p", { class: "pai-muted" }, [
-        "한 번 인덱싱하면 로컬 RAG 캐시(data dir / paperai/rag)에 저장됩니다. 채팅·sticky는 논문 노트(Zotero Sync). 안 눌러도 첫 질문 때 자동 인덱싱합니다.",
-      ]),
-      el(
-        doc,
-        "button",
-        {
-          type: "button",
-          class: "pai-btn pai-index primary",
-          "data-act": "index-paper",
-          "data-pai-index": "1",
-          title: "현재 PDF 전체 텍스트를 추출·청킹해 로컬에 저장",
-        },
-        [INDEX_BTN_IDLE],
-      ),
-    ]),
-  );
-
-  // Sticky notes in paper order
+  // 4) Sticky notes
   stack.appendChild(
     el(doc, "div", { class: "pai-card" }, [
       el(doc, "div", { class: "pai-head" }, [
@@ -527,7 +579,7 @@ export function buildPanelDom(
     ]),
   );
 
-  // Chat card
+  // 5) Chat — clear/note on the card header; log is vertically resizable
   const log = el(doc, "div", { class: "pai-log", "data-pai-log": "1" }, [
     el(doc, "div", { class: "pai-bubble empty" }, [
       "아직 대화가 없습니다. 아래에 질문을 쓰고 Enter 또는 보내기를 누르세요.",
@@ -541,8 +593,18 @@ export function buildPanelDom(
   });
   stack.appendChild(
     el(doc, "div", { class: "pai-card pai-chat" }, [
-      el(doc, "h4", null, ["논문에 질문하기"]),
+      el(doc, "div", { class: "pai-head" }, [
+        el(doc, "h4", null, ["논문에 질문하기"]),
+        el(doc, "div", { class: "pai-actions" }, [
+          btn(doc, "chat-detach", "별도 창", "pai-btn ghost"),
+          btn(doc, "clear", "대화 지우기", "pai-btn ghost"),
+          btn(doc, "note", "노트 저장", "pai-btn ghost"),
+        ]),
+      ]),
       log,
+      el(doc, "div", { class: "pai-log-hint pai-muted" }, [
+        "대화 창 모서리를 드래그해 높이 조절",
+      ]),
       el(doc, "div", { class: "pai-composer" }, [
         el(doc, "div", { class: "pai-input-row" }, [
           textarea,
@@ -555,8 +617,12 @@ export function buildPanelDom(
     ]),
   );
 
+  // Status + diagnostics copy at the bottom (near log/status text)
   stack.appendChild(
-    el(doc, "div", { class: "pai-status", "data-pai-status": "1" }),
+    el(doc, "div", { class: "pai-status-row" }, [
+      el(doc, "div", { class: "pai-status", "data-pai-status": "1" }),
+      btn(doc, "diag-copy", "진단 로그 복사", "pai-btn ghost"),
+    ]),
   );
 
   root.appendChild(stack);

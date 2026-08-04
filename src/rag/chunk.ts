@@ -1,14 +1,55 @@
 /**
  * Section → paragraph → sentence hierarchical chunking (parent–child).
- * Policy: section-para-sent-v4 — locators like Introduction ¶2 s3.
+ * Policy: section-para-sent-v5 — broader heading detection; cites use [E#] at retrieve time.
  */
 
 import { CHUNK_POLICY, type Chunk, type ExtractedDoc } from "./types";
 
 export { CHUNK_POLICY };
 
-const SECTION_RE =
-  /^(?:(?:\d+(?:\.\d+){0,3}|[IVXLC]+)\s+)?(Abstract|Introduction|Related\s+Work|Background|Preliminaries|Method(?:s|ology)?|Approach|Experiments?|Evaluation|Results?|Discussion|Conclusion|Conclusions|Limitations|Appendix|References|Acknowledgments?)\b/i;
+/** Named academic headings (optional leading number / roman). */
+const NAMED_SECTION_RE =
+  /^(?:(?:\d+(?:\.\d+){0,3}|[IVXLC]+)\.?\s+)?(Abstract|Introduction|Related\s+Works?|Background|Preliminaries|Method(?:s|ology)?|Approach|Experiments?|Evaluation|Results?|Discussion|Conclusion|Conclusions|Limitations|Appendix|References|Acknowledgments?)\b/i;
+
+/**
+ * True if a single line looks like a section heading (pure; unit-tested).
+ * Accepts: named sections, "2 Method", "2. Method", "IV. Experiments", short ALL CAPS.
+ */
+export function isSectionHeadingLine(line: string): boolean {
+  const t = String(line || "").trim();
+  if (!t || t.length >= 80) return false;
+  // Full sentence / trailing period usually body prose
+  if (/[.!?;:]$/.test(t) && t.length > 40) return false;
+
+  if (NAMED_SECTION_RE.test(t)) return true;
+
+  // Numbered heading: "2 Method", "2. Method", "2.1 Residual Forces"
+  if (/^\d+(\.\d+){0,3}\.?\s+[A-Z][\w'’\-/,:+ ]{1,60}$/.test(t)) {
+    // Reject pure enumerations like "1 2 3" or numeric-only
+    const rest = t.replace(/^\d+(\.\d+){0,3}\.?\s+/, "");
+    if (/[A-Za-z]{2,}/.test(rest) && rest.split(/\s+/).length <= 10) {
+      return true;
+    }
+  }
+
+  // Roman numeral heading: "IV Experiments", "III. Method"
+  if (/^[IVXLC]{1,6}\.?\s+[A-Z][\w'’\-/,:+ ]{1,60}$/.test(t)) {
+    return true;
+  }
+
+  // Short ALL-CAPS line (common PDF headings), not a long shouty sentence
+  if (
+    /^[A-Z0-9][A-Z0-9\s\-&/]{2,50}$/.test(t) &&
+    !/[.!?]$/.test(t) &&
+    t.split(/\s+/).length <= 8 &&
+    /[A-Z]{3,}/.test(t)
+  ) {
+    // Avoid catching figure labels like "FIG 1" alone as whole-paper section — still ok as section start
+    return true;
+  }
+
+  return false;
+}
 
 export function estimateTokens(text: string): number {
   // Rough: ~4 chars/token for mixed EN
@@ -108,7 +149,7 @@ export function splitIntoSections(
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.length > 0 && trimmed.length < 80 && SECTION_RE.test(trimmed)) {
+    if (isSectionHeadingLine(trimmed)) {
       flush();
       curName = trimmed.replace(/\s+/g, " ");
       continue;
@@ -153,11 +194,7 @@ function splitPagedSections(
     const lines = normalizeWs(p.text).split("\n");
     for (const line of lines) {
       const trimmed = line.trim();
-      if (
-        trimmed.length > 0 &&
-        trimmed.length < 80 &&
-        SECTION_RE.test(trimmed)
-      ) {
+      if (isSectionHeadingLine(trimmed)) {
         flush();
         curName = trimmed.replace(/\s+/g, " ");
         pageStart = p.page;
@@ -215,10 +252,15 @@ function packByTokens(
   return out;
 }
 
+/** First sentence (or two if short) — needle for PDF cite locate / auto-HL. */
 function anchorFrom(text: string): string {
   const sents = splitSentences(text);
-  const a = (sents[0] || text).replace(/\s+/g, " ").trim();
-  return a.slice(0, 160);
+  const first = (sents[0] || text).replace(/\s+/g, " ").trim();
+  if (first.length >= 80 || sents.length < 2) {
+    return first.slice(0, 320);
+  }
+  const second = (sents[1] || "").replace(/\s+/g, " ").trim();
+  return `${first} ${second}`.trim().slice(0, 320);
 }
 
 /**

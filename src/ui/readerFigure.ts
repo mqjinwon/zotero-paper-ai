@@ -282,7 +282,7 @@ export async function runFigureStickyTask(opts: {
       } catch {
         /* ignore */
       }
-      // Inline [§…] links only — no trailing evidence dump
+      // Inline [E#] / legacy [§…] links only — no trailing evidence dump
       answer = withEvidenceAnswer(answer, rag.evidence).answer;
     }
     answer = answer || "(empty)";

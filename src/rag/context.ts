@@ -1,13 +1,28 @@
 /**
- * Format retrieved evidence into an LLM context block + citation labels.
- * Cite form: [§Section ¶N sM p.P] — paragraph/sentence when known.
- * UI answers rewrite bare cites into HTML anchors (not MD titles — quotes break MD).
+ * Evidence formatting + answer linkify.
+ * Primary cite form: [E1], [E2], … with a sentence quote needle for PDF locate.
+ * Legacy [§Section …] labels still linkify when present (old chats / aliases).
  */
 
 import { formatLocator } from "./chunk";
 import type { IndexedChunk, RetrievedEvidence } from "./types";
 
-/** Locator suffix: " ¶2 s3" or " ¶2–4" (no page — page appended separately). */
+/** Stable evidence id for the model + UI, e.g. [E1]. */
+export function evidenceId(index0: number): string {
+  return `[E${index0 + 1}]`;
+}
+
+/** Stamp sequential [E1]… cites onto evidence (mutates). */
+export function stampEvidenceIds(
+  evidence: RetrievedEvidence[],
+): RetrievedEvidence[] {
+  for (let i = 0; i < evidence.length; i++) {
+    evidence[i].cite = evidenceId(i);
+  }
+  return evidence;
+}
+
+/** Locator suffix for optional human meta only: " ¶2 s3". */
 export function locatorSuffix(c: IndexedChunk): string {
   let s = "";
   if (c.paraStart != null) {
@@ -30,6 +45,10 @@ export function locatorSuffix(c: IndexedChunk): string {
   return s;
 }
 
+/**
+ * Legacy section-style cite (kept for aliases / tests / old history).
+ * New retrieval paths use evidenceId via stampEvidenceIds.
+ */
 export function citeOf(c: IndexedChunk): string {
   const section = c.section.startsWith("§") ? c.section : `§${c.section}`;
   const loc = locatorSuffix(c);
@@ -42,7 +61,7 @@ export function citeOf(c: IndexedChunk): string {
   return `[${section}${loc}${pages}]`;
 }
 
-/** Section-only form still emitted so models can use either style. */
+/** Section-only form for legacy aliases. */
 export function citeBareSection(c: IndexedChunk): string {
   const section = c.section.startsWith("§") ? c.section : `§${c.section}`;
   return `[${section}]`;
@@ -53,43 +72,74 @@ export function formatContextBlock(
   title: string,
 ): string {
   if (!evidence.length) return "";
+  stampEvidenceIds(evidence);
   const lines = [
     `Paper: ${title}`,
-    "Evidence passages (cite with the EXACT labels in brackets):",
+    "Evidence passages — cite ONLY with the bracket ids [E1], [E2], … exactly as labeled.",
+    "Do not invent §Body-style section locators. Prefer the given Quote needle when referring to a passage.",
     "",
   ];
   evidence.forEach((e, i) => {
+    const id = e.cite || evidenceId(i);
+    const previewSrc =
+      e.chunk?.anchorText || e.contextText || e.chunk?.text || "";
+    const quote = citePreview(previewSrc, 280);
     const loc = formatLocator(e.chunk);
-    lines.push(`### ${i + 1}. ${e.cite}`);
-    lines.push(`Locator: ${loc}`);
+    lines.push(`### ${id}`);
+    if (quote) lines.push(`Quote: ${quote}`);
+    if (loc) lines.push(`Meta: ${loc}`);
     lines.push(e.contextText.trim());
     lines.push("");
   });
   lines.push(
     "Use only the evidence above when possible. If it is insufficient, say what is missing. " +
-      "When you rely on a passage, cite its exact label " +
-      "(e.g. [§Introduction ¶2 s3] or [§Method ¶1]). Prefer the most specific label given.",
+      "When you rely on a passage, cite its id only (e.g. [E1] or [E2]).",
   );
   return lines.join("\n");
 }
 
 export interface CiteLink {
-  /** Full label as model sees it, e.g. [§Introduction ¶2 s3] */
+  /** Primary key as model sees it, e.g. [E1] */
   cite: string;
   /** Inner text without brackets */
   label: string;
   pageStart?: number;
   pageEnd?: number;
+  /**
+   * Sentence-level needle for PDF text locate (auto-HL algorithm).
+   */
   preview: string;
-  /** Optional secondary keys for linkify (bare section). */
+  /** Legacy § labels and variants for old answers. */
   aliases?: string[];
 }
 
-function citePreview(text: string, max = 120): string {
-  return String(text || "")
+/** Prefer first 1–2 sentences as a locate needle (min ~24 alnum for auto-HL). */
+export function citePreview(text: string, max = 320): string {
+  const t = String(text || "")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, max);
+    .trim();
+  if (!t) return "";
+  const m = t.match(/^(.+?[.!?])(?:\s+|$)/);
+  if (m && m[1].length >= 40 && m[1].length <= max) {
+    if (m[1].length < 80 && t.length > m[1].length + 10) {
+      const rest = t.slice(m[1].length).trim();
+      const m2 = rest.match(/^(.+?[.!?])(?:\s+|$)/);
+      const two = m2 ? `${m[1]} ${m2[1]}` : `${m[1]} ${rest}`;
+      return two.slice(0, max).trim();
+    }
+    return m[1].trim();
+  }
+  return t.slice(0, max);
+}
+
+/** Visible snippet next to evidence id. */
+function citeLinkSnippet(preview: string, max = 48): string {
+  const t = String(preview || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (t.length < 12) return "";
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1).trim()}…`;
 }
 
 function escapeHtml(s: string): string {
@@ -122,23 +172,22 @@ function hrefFor(c: CiteLink): string {
 export function uniqueCiteLinks(evidence: RetrievedEvidence[]): CiteLink[] {
   const out: CiteLink[] = [];
   const seen = new Set<string>();
-  for (const e of evidence) {
+  evidence.forEach((e, i) => {
+    const key = e.cite || evidenceId(i);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+
     const section = e.chunk?.section
       ? e.chunk.section.startsWith("§")
         ? e.chunk.section
         : `§${e.chunk.section}`
       : "";
-    const precise = e.cite || citeOf(e.chunk);
-    // Prefer precise locator cite as primary key
-    const key = precise || (section ? `[${section}]` : "");
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-
+    const legacy = e.chunk ? citeOf(e.chunk) : "";
     const bareSection = section ? `[${section}]` : "";
     const withLoc =
       section && e.chunk ? `[${section}${locatorSuffix(e.chunk)}]` : "";
-    const aliases = [bareSection, withLoc, e.cite].filter(
-      (a) => a && a !== key,
+    const aliases = [legacy, bareSection, withLoc].filter(
+      (a) => a && a !== key && !seen.has(a),
     ) as string[];
     for (const a of aliases) seen.add(a);
 
@@ -150,20 +199,21 @@ export function uniqueCiteLinks(evidence: RetrievedEvidence[]): CiteLink[] {
       label,
       pageStart: e.chunk?.pageStart,
       pageEnd: e.chunk?.pageEnd,
-      preview: citePreview(previewSrc),
+      preview: citePreview(previewSrc, 320),
       aliases,
     });
-  }
+  });
   return out;
 }
 
 /**
- * HTML anchor for a cite. Avoids markdown title="..." which breaks on quotes/parens.
- * data-preview holds search text; data-page holds 1-based page when known.
+ * HTML anchor for a cite.
+ * data-preview = sentence needle for locateQuoteInOpenPdf; data-page = 1-based page.
+ * Visible text: E1 · “quote…” (not §Body geometry).
  */
 export function htmlCiteLink(
   c: CiteLink,
-  opts?: { withPageHint?: boolean },
+  opts?: { withPageHint?: boolean; withSnippet?: boolean },
 ): string {
   const hint = opts?.withPageHint === false ? "" : pageHint(c);
   const href = hrefFor(c);
@@ -172,32 +222,33 @@ export function htmlCiteLink(
     ? ` data-preview="${escapeHtml(c.preview)}"`
     : "";
   const title = escapeHtml(
-    c.preview ? `${c.preview}${c.preview.length >= 120 ? "…" : ""}` : c.label,
+    c.preview ? `${c.preview}${c.preview.length >= 300 ? "…" : ""}` : c.label,
   );
+  const snip =
+    opts?.withSnippet === false ? "" : citeLinkSnippet(c.preview, 48);
+  const visible = snip ? `${c.label}${hint} · “${snip}”` : `${c.label}${hint}`;
   return (
     `<a class="paperai-cite" href="${href}" title="${title}"` +
-    `${pageAttr}${previewAttr}>${escapeHtml(c.label + hint)}</a>`
+    `${pageAttr}${previewAttr}>${escapeHtml(visible)}</a>`
   );
 }
 
-/** @deprecated use htmlCiteLink — kept for tests that check page hrefs */
+/** @deprecated use htmlCiteLink */
 export function mdCiteLink(
   c: CiteLink,
   opts?: { withPageHint?: boolean },
 ): string {
-  // Emit HTML so marked passes it through; still works in node tests via string match
   return htmlCiteLink(c, opts);
 }
 
 /**
- * Optional list of all retrieved cites (legacy). Not appended to answers by
- * default — UI relies on in-body [§…] linkify only.
+ * Optional list of all retrieved cites (legacy). Not appended by default.
  */
 export function evidenceFooter(evidence: RetrievedEvidence[]): string {
   const links = uniqueCiteLinks(evidence);
   if (!links.length) return "";
   const lines = [
-    "근거 (라벨 클릭 → PDF 해당 페이지 · 호버 시 발췌 미리보기):",
+    "근거 (라벨 클릭 → PDF 해당 문장 하이라이트 · 호버 시 발췌):",
     ...links.map((c) => {
       const tail =
         c.preview.length >= 120 ? `${c.preview}…` : c.preview || "(발췌 없음)";
@@ -208,8 +259,7 @@ export function evidenceFooter(evidence: RetrievedEvidence[]): string {
 }
 
 /**
- * Rewrite bare model cites like [§Body (1)] into HTML links.
- * Also matches [§Body (1) p.3] style if the model included pages.
+ * Rewrite model cites [E1] / legacy [§…] into HTML links with quote needles.
  */
 export function linkifyBareCites(
   text: string,
@@ -217,14 +267,13 @@ export function linkifyBareCites(
 ): string {
   const links = uniqueCiteLinks(evidence);
   if (!text || !links.length) return text;
-  links.sort((a, b) => b.cite.length - a.cite.length);
   let out = text;
 
-  // Build map section → link for flexible matching (precise + aliases)
   const byLabel = new Map<string, CiteLink>();
   for (const c of links) {
     byLabel.set(c.cite, c);
     byLabel.set(c.label, c);
+    byLabel.set(c.cite.toLowerCase(), c);
     for (const a of c.aliases || []) {
       if (!byLabel.has(a)) byLabel.set(a, c);
       const inner = a.replace(/^\[/, "").replace(/\]$/, "");
@@ -232,20 +281,32 @@ export function linkifyBareCites(
     }
   }
 
-  // Longer cites first so ¶2 s3 beats bare section
-  const ordered = [...links].sort((a, b) => b.cite.length - a.cite.length);
+  // Primary: [E1], [E2], … (case-insensitive E)
+  out = out.replace(/\[E(\d+)\](?!\()/gi, (full, n: string) => {
+    const key = `[E${Number(n)}]`;
+    const c = byLabel.get(key) || byLabel.get(key.toLowerCase());
+    if (!c) return full;
+    return htmlCiteLink(c, { withPageHint: false });
+  });
+
+  // Legacy § labels (longer first)
+  const ordered = [...links].sort(
+    (a, b) =>
+      Math.max(b.cite.length, ...(b.aliases || []).map((x) => x.length)) -
+      Math.max(a.cite.length, ...(a.aliases || []).map((x) => x.length)),
+  );
   for (const c of ordered) {
-    const keys = [c.cite, ...(c.aliases || [])].filter(Boolean);
+    const keys = [...(c.aliases || [])].filter((k) => k.startsWith("[§"));
+    keys.sort((a, b) => b.length - a.length);
     for (const k of keys) {
       const re = new RegExp(escapeRegExp(k) + "(?!\\()", "g");
       out = out.replace(re, htmlCiteLink(c, { withPageHint: false }));
     }
   }
 
-  // Also replace [§Anything] that matches a known label prefix (page-less)
+  // Residual [§Anything] that still matches known alias map
   out = out.replace(/\[§([^\]]+)\](?!\()/g, (full, inner: string) => {
     const label = `§${inner}`;
-    // strip trailing " p.N" for lookup
     const base = label.replace(/\s+p\.\d+(?:–\d+)?\s*$/i, "").trim();
     const c =
       byLabel.get(`[${label}]`) ||
@@ -260,8 +321,8 @@ export function linkifyBareCites(
 }
 
 /**
- * Linkify in-body cites like [§Body (1)] → clickable PDF jumps.
- * Does **not** append the full evidence footer list (user preference).
+ * Linkify in-body cites → clickable PDF text jumps.
+ * Does **not** append the full evidence footer list by default.
  */
 export function withEvidenceAnswer(
   answer: string,
@@ -271,6 +332,7 @@ export function withEvidenceAnswer(
   if (!evidence.length) {
     return { answer, ragFooter: "" };
   }
+  stampEvidenceIds(evidence);
   const body = linkifyBareCites(answer || "", evidence);
   if (opts?.appendFooter) {
     const ragFooter = evidenceFooter(evidence);

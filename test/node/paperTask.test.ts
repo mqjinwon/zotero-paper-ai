@@ -84,7 +84,7 @@ describe("paperTask attachRagContext (shipped)", () => {
       });
       assert.equal(chat.usedRag, true);
       assert.ok(chat.contextBlock.length > 0);
-      assert.match(chat.contextBlock, /\[§|Evidence|residual/i);
+      assert.match(chat.contextBlock, /\[E\d+\]|Evidence|residual/i);
 
       const tr = await attachRagContext({
         mode: "translate",

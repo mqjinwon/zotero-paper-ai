@@ -1,6 +1,7 @@
 /**
- * Attach page numbers to evidence that only has section labels (e.g. §Body (1)).
- * Does NOT rewrite e.cite (must stay as model labels like [§Body (1)] for linkify).
+ * Attach page numbers to evidence via real PDF text search only.
+ * Does NOT invent pages from Body (k) proportional heuristics (disabled).
+ * Cite labels stay as [E#]; navigation uses quote locate when page is unknown.
  */
 
 import type { RetrievedEvidence } from "./types";
@@ -37,7 +38,6 @@ export function findOpenPdfApp(): any {
   try {
     const Z = resolveZotero();
     const readers = Z?.Reader?._readers || [];
-    // Prefer selected tab reader
     try {
       const main = Z?.getMainWindow?.();
       const tabId = main?.Zotero_Tabs?.selectedID;
@@ -65,7 +65,6 @@ export function findOpenPdfApp(): any {
         if (app?.pdfDocument) return app;
         if (app) return app;
       }
-      // Walk iframes under reader shell
       try {
         const shell = r?._iframeWindow?.document || r?._iframe?.contentDocument;
         const iframes = shell?.querySelectorAll?.("iframe") || [];
@@ -124,37 +123,42 @@ async function findPageForNeedle(
   return null;
 }
 
-function bodyIndex(section: string): number | null {
-  const m = String(section || "").match(/Body\s*\((\d+)\)/i);
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) && n > 0 ? n : null;
+/**
+ * Body (k) proportional page assignment — permanently disabled.
+ * Exported so tests prove it never invents pages from section indices alone.
+ */
+export function bodyProportionalPage(
+  _section: string,
+  _numPages: number,
+  _maxBody?: number,
+): number | null {
+  return null;
 }
 
-function sectionHeuristicPage(
+/**
+ * Optional soft section → page guess (NOT Body-proportional).
+ * Only extreme anchors: abstract→1, references→last. Everything else null.
+ * Callers may ignore this entirely; enrichEvidenceWithPages does not use it
+ * for navigation inventing when text search is available.
+ */
+export function softSectionPageHint(
   section: string,
   numPages: number,
-  maxBody: number,
 ): number | null {
   if (numPages < 1) return null;
   const s = String(section || "").toLowerCase();
   if (/abstract/.test(s)) return 1;
   if (/reference/.test(s)) return numPages;
-  if (/conclusion|future\s*work/.test(s)) {
-    return Math.max(1, numPages - 1);
-  }
-  const bi = bodyIndex(section);
-  if (bi != null && maxBody > 0) {
-    // Spread Body (1..N) across the PDF
-    const page = Math.ceil(((bi - 0.25) / maxBody) * numPages);
-    return Math.max(1, Math.min(numPages, page));
-  }
+  // Explicitly never invent from Body (k)
+  if (/body\s*\(\d+\)/i.test(s) || /^body$/i.test(s.trim())) return null;
   return null;
 }
 
 /**
- * Mutates evidence chunks' pageStart/pageEnd only (cite labels unchanged).
- * Order: text search → section/Body proportional heuristic.
+ * Mutates evidence chunks' pageStart/pageEnd only when known from:
+ *  1) already set on the chunk
+ *  2) open-PDF text search
+ * Never assigns pages solely from Body (k) packing indices.
  */
 export async function enrichEvidenceWithPages(
   evidence: RetrievedEvidence[],
@@ -162,12 +166,6 @@ export async function enrichEvidenceWithPages(
   if (!evidence.length) return { filled: 0, via: "empty" };
   const app = findOpenPdfApp();
   const numPages = Number(app?.pdfDocument?.numPages) || 0;
-
-  let maxBody = 1;
-  for (const e of evidence) {
-    const bi = bodyIndex(e.chunk?.section || "");
-    if (bi != null) maxBody = Math.max(maxBody, bi);
-  }
 
   const cache = new Map<string, number | null>();
   let filled = 0;
@@ -180,9 +178,11 @@ export async function enrichEvidenceWithPages(
     }
     let page: number | null = null;
 
-    // 1) PDF.js text search
+    // 1) PDF.js text search only (real content)
     if (app?.pdfDocument) {
-      const needle = pickSearchNeedle(e.contextText || e.chunk.text || "");
+      const needle = pickSearchNeedle(
+        e.chunk?.anchorText || e.contextText || e.chunk.text || "",
+      );
       if (needle) {
         if (cache.has(needle)) page = cache.get(needle) ?? null;
         else {
@@ -193,23 +193,22 @@ export async function enrichEvidenceWithPages(
       }
     }
 
-    // 2) Heuristic from section / Body (n)
-    if (page == null && numPages > 0) {
-      page = sectionHeuristicPage(e.chunk.section || "", numPages, maxBody);
-      if (page != null)
-        via = via === "none" || via === "search" ? via + "+heur" : via;
+    // 2) Body-proportional heuristic: intentionally not used
+    // bodyProportionalPage(...) always returns null.
+    if (page == null) {
+      void bodyProportionalPage(e.chunk.section || "", numPages);
     }
 
     if (page != null && page > 0) {
       e.chunk.pageStart = page;
       e.chunk.pageEnd = page;
-      // IMPORTANT: do not rewrite e.cite — model answers use [§Body (1)] without p.N
+      // Do not rewrite e.cite — model answers use [E#]
       filled++;
     }
   }
 
   return {
     filled,
-    via: via === "none" ? (numPages ? "heur-miss" : "no-pdf") : via,
+    via: via === "none" ? (numPages ? "search-miss" : "no-pdf") : via,
   };
 }

@@ -3,6 +3,7 @@ import { resolveFeatureConfig } from "./llm/featureConfig";
 import { warmLLM } from "./llm/fastTranslate";
 import { PaperAIFactory } from "./modules/paperAI";
 import { registerPrefsScripts } from "./modules/preferenceScript";
+import { closeChatDetachWindow } from "./ui/chatDetach";
 import { startSelectionUX, stopSelectionUX } from "./ui/selectionUX";
 import { getString, initLocale } from "./utils/locale";
 import { createZToolkit } from "./utils/ztoolkit";
@@ -66,6 +67,11 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  try {
+    closeChatDetachWindow();
+  } catch {
+    /* ignore */
+  }
   stopSelectionUX();
   ztoolkit.unregisterAll();
   addon.data.alive = false;
