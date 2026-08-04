@@ -14,6 +14,8 @@ export async function createNodeFileStore(): Promise<FileStore> {
     if (s === "~") return os.homedir();
     if (s.startsWith("~/") || s.startsWith("~\\")) {
       s = path.join(os.homedir(), s.slice(2));
+    } else if (!path.isAbsolute(s)) {
+      s = path.join(os.homedir(), s);
     }
     return s;
   };

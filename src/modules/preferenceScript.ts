@@ -3,6 +3,11 @@ import { createZoteroFileStore } from "../auth/fileStore";
 import { resolveFeatureConfig } from "../llm/featureConfig";
 import { getOrCreateClient } from "../llm/fastTranslate";
 import type { FeatureId } from "../llm/featureConfig";
+import {
+  describePaperAiDataDir,
+  resolveCustomDataDir,
+  resolveZoteroDataDirectory,
+} from "../utils/dataDir";
 
 async function testFeature(feature: FeatureId, status: HTMLElement | null) {
   if (status) status.textContent = `Testing ${feature}…`;
@@ -31,6 +36,35 @@ async function testFeature(feature: FeatureId, status: HTMLElement | null) {
   }
 }
 
+function refreshDataDirHint(doc: Document) {
+  const el = doc.getElementById(
+    `${config.addonRef}-dataDir-resolved`,
+  ) as HTMLElement | null;
+  if (!el) return;
+  try {
+    const store = createZoteroFileStore();
+    const input = doc.getElementById(
+      `zotero-prefpane-${config.addonRef}-dataDir`,
+    ) as HTMLInputElement | null;
+    const typed = (input?.value ?? "").trim();
+    let resolved: string;
+    if (typed) {
+      resolved = `custom → ${resolveCustomDataDir(store, typed)}`;
+    } else if (resolveZoteroDataDirectory()) {
+      // Field empty: show default even if pref write lags
+      resolved = `Zotero data dir / paperai → ${store.join(resolveZoteroDataDirectory()!, "paperai")}`;
+    } else {
+      resolved = describePaperAiDataDir(store);
+    }
+    el.textContent =
+      `Resolved RAG root: ${resolved}. Chat/sticky → Zotero item notes (library Sync). ` +
+      `RAG only uses this folder. Empty field recommended. ` +
+      `OAuth: ~/.grok · ~/.codex. Legacy ~/.paperai still read for old RAG files.`;
+  } catch (e) {
+    el.textContent = e instanceof Error ? e.message : String(e);
+  }
+}
+
 export async function registerPrefsScripts(_window: Window) {
   const doc = _window.document;
   const status = doc.getElementById(
@@ -42,6 +76,19 @@ export async function registerPrefsScripts(_window: Window) {
   const btnChat = doc.getElementById(
     `${config.addonRef}-test-chat`,
   ) as HTMLButtonElement | null;
+
+  refreshDataDirHint(doc);
+  const dataDirInput = doc.getElementById(
+    `zotero-prefpane-${config.addonRef}-dataDir`,
+  ) as HTMLInputElement | null;
+  if (dataDirInput) {
+    dataDirInput.addEventListener("change", () => refreshDataDirHint(doc));
+    dataDirInput.addEventListener("input", () => {
+      // Debounce light: only update on idle typing pause via change is enough;
+      // still refresh so placeholder edits show quickly.
+      refreshDataDirHint(doc);
+    });
+  }
 
   if (btnTranslate) {
     if (!btnTranslate.textContent?.trim()) {

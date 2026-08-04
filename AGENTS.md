@@ -26,9 +26,11 @@ Compact facts for coding agents. Prose to user: Korean; code/comments/IDs: Engli
 
 ## RAG
 
-- Index: `~/.paperai/rag/`; policy bump rebuilds (`CHUNK_POLICY`).
-- Prefer PDF.js per-page extract when reader open (page map for cites). Fulltext alone → no `pageStart`.
-- Stuff short papers; else BM25/hybrid. Footer via `withEvidenceAnswer` after stream ends.
+- Index: `{dataDir}/rag/` (default `{Zotero.DataDirectory}/paperai/rag`); policy bump rebuilds (`CHUNK_POLICY`).
+- Chunk policy `section-para-sent-v4`: cites like `[§Introduction ¶2 s3 p.2]` (section · paragraph · sentence · page).
+- Auto-highlight: `src/rag/autoHighlight/*` — 4 classes (claim/method/novelty/caveat), tags `paper-ai-auto`, Zotero Annotations.saveFromJSON.
+- Prefer PDF.js per-page extract when reader open (page map for cites). Fulltext alone → weaker `pageStart`.
+- Stuff short papers; else BM25/hybrid. Answers: inline `[§…]` linkify only (no evidence dump footer).
 - Figure: `figureContext` captions/discussions + `attachRagContext`.
 
 ## Prompts (`src/llm/prompts.ts`)
@@ -43,7 +45,10 @@ Compact facts for coding agents. Prose to user: Korean; code/comments/IDs: Engli
 ## Data / local deploy
 
 ```
-~/.paperai/{chat,sticky,rag}/
+Chat/sticky → parent child notes (tags paper-ai-chat / paper-ai-sticky)
+              encode: src/storage/itemNoteStore.ts → Zotero library sync
+RAG cache   → {dataDir}/rag/  (pref dataDir empty = DataDirectory/paperai)
+Legacy file → read once, migrate into notes
 npm run deploy:local  → <profile>/extensions/<addonID>.xpi
 Restart Zotero after deploy
 ```

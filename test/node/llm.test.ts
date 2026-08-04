@@ -4,7 +4,12 @@ import {
   normalizeMathDelimiters,
   renderMarkdown,
 } from "../../src/ui/markdown.ts";
-import { buildSystemPrompt, buildUserPayload } from "../../src/llm/prompts.ts";
+import {
+  buildSummarySystemPrompt,
+  buildSummaryUserPayload,
+  buildSystemPrompt,
+  buildUserPayload,
+} from "../../src/llm/prompts.ts";
 import { runTask } from "../../src/llm/router.ts";
 import type { LLMClient } from "../../src/llm/types.ts";
 import { consumeOpenAIChatSSE } from "../../src/llm/grokClient.ts";
@@ -37,6 +42,18 @@ describe("prompts", () => {
     const s = buildSystemPrompt("explain", "ko");
     assert.match(s, /co-reader|research/i);
     assert.match(s, /assumption|evidence|RAG|\[§/i);
+  });
+
+  it("summary prompt asks for 3–5 bullets only", () => {
+    const s = buildSummarySystemPrompt("ko");
+    assert.match(s, /3 to 5|3–5|3-5/i);
+    assert.match(s, /bullet/i);
+    const u = buildSummaryUserPayload({
+      paperTitle: "Attention",
+      context: "Evidence passages\n[§Abstract] …",
+    });
+    assert.match(u, /Attention/);
+    assert.match(u, /Evidence passages/);
   });
 
   it("runTask rejects translate (fastTranslate only)", async () => {

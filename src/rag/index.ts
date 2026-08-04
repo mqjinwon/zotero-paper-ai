@@ -21,7 +21,7 @@ import {
   type ExtractInput,
 } from "./extract";
 import { retrieve, type RetrieveOptions } from "./retrieve";
-import { loadIndex, saveIndex } from "./store";
+import { findLatestIndexForPaper, loadIndex, saveIndex } from "./store";
 import type {
   ExtractedDoc,
   IndexedChunk,
@@ -143,19 +143,50 @@ export async function ensureIndex(
   const prefs = mergeRagPrefs(opts.prefs);
   opts.onStatus?.("논문 전체 인덱싱 중…");
 
-  let doc: ExtractedDoc;
+  let doc: ExtractedDoc | null = null;
+  let extractError: unknown = null;
   if (opts.extract) {
-    doc = isExtractedDoc(opts.extract)
-      ? opts.extract
-      : buildExtractedDoc(opts.extract);
+    try {
+      doc = isExtractedDoc(opts.extract)
+        ? opts.extract
+        : buildExtractedDoc(opts.extract);
+    } catch (e) {
+      extractError = e;
+    }
   } else if (opts.itemKey) {
-    doc = await extractPaperFromZotero({
-      itemKey: opts.itemKey,
-      itemID: opts.itemID,
-      title: opts.title,
-    });
+    try {
+      doc = await extractPaperFromZotero({
+        itemKey: opts.itemKey,
+        itemID: opts.itemID,
+        title: opts.title,
+      });
+    } catch (e) {
+      extractError = e;
+    }
   } else {
     throw new Error("ensureIndex requires extract or itemKey");
+  }
+
+  // Extract failed → still use any on-disk cache for this paper (query UX).
+  if (!doc) {
+    if (opts.itemKey) {
+      try {
+        const stale = await findLatestIndexForPaper(opts.store, opts.itemKey);
+        if (stale && stale.chunkPolicy === CHUNK_POLICY) {
+          opts.onStatus?.(
+            "텍스트 추출 실패 — 기존 로컬 인덱스 사용 (PDF 탭을 연 뒤 재인덱싱 권장)",
+          );
+          return stale;
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+    if (extractError instanceof Error) throw extractError;
+    throw new EmptyExtractError(
+      opts.itemKey || "unknown",
+      String(extractError),
+    );
   }
 
   const cacheKey = `${doc.paperId}:${doc.pdfHash}`;
@@ -163,7 +194,7 @@ export async function ensureIndex(
   if (existing) return existing;
 
   const work = (async () => {
-    const cached = await loadIndex(opts.store, doc.paperId, doc.pdfHash);
+    const cached = await loadIndex(opts.store, doc!.paperId, doc!.pdfHash);
     if (cached && cached.chunkPolicy === CHUNK_POLICY) {
       let want: ReturnType<typeof resolveEffectiveMode>;
       try {
@@ -193,10 +224,17 @@ export async function ensureIndex(
       }
     }
 
-    const index = await buildIndexFromDoc(doc, prefs, {
+    const index = await buildIndexFromDoc(doc!, prefs, {
       fetchImpl: opts.fetchImpl,
     });
-    await saveIndex(opts.store, index);
+    try {
+      await saveIndex(opts.store, index);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(
+        `인덱스 저장 실패 (${msg}). Data directory 권한/경로를 확인하세요.`,
+      );
+    }
     opts.onStatus?.("인덱싱 완료");
     return index;
   })();

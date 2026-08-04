@@ -157,7 +157,7 @@ describe("rag extract", () => {
   });
 });
 
-describe("rag chunk section-parent-child-v3-pages", () => {
+describe("rag chunk section-para-sent-v4", () => {
   it("covers all major sections of fixture paper", () => {
     const doc = fixtureDoc();
     const chunks = chunkDocument(doc);
@@ -184,7 +184,26 @@ describe("rag chunk section-parent-child-v3-pages", () => {
     );
     assert.ok(parents.length >= 5);
     assert.ok(children.length >= 5);
-    assert.equal(CHUNK_POLICY, "section-parent-child-v3-pages");
+    assert.equal(CHUNK_POLICY, "section-para-sent-v4");
+    // Children should carry paragraph locators when possible
+    const withPara = children.filter((c) => c.paraStart != null);
+    assert.ok(withPara.length >= 3, "expected children with paraStart");
+  });
+
+  it("citeOf includes paragraph/sentence locators", () => {
+    const cite = citeOf({
+      id: "1",
+      text: "We study residual forces.",
+      section: "Introduction",
+      kind: "child",
+      tokenEstimate: 10,
+      paraStart: 2,
+      paraEnd: 2,
+      sentStart: 3,
+      sentEnd: 3,
+      pageStart: 2,
+    });
+    assert.equal(cite, "[§Introduction ¶2 s3 p.2]");
   });
 });
 
@@ -549,7 +568,7 @@ describe("rag context cites + wiring", () => {
     assert.doesNotMatch(out, /\[§Body \(1\)\](?!<)/);
   });
 
-  it("withEvidenceAnswer appends footer and linkifies body", () => {
+  it("withEvidenceAnswer linkifies body without evidence dump", () => {
     const { answer, ragFooter } = withEvidenceAnswer("see [§Method p.3]", [
       {
         chunk: {
@@ -565,8 +584,35 @@ describe("rag context cites + wiring", () => {
         cite: "[§Method p.3]",
       },
     ]);
-    assert.match(ragFooter, /#paperai-page-3/);
+    assert.equal(ragFooter, "");
     assert.match(answer, /#paperai-page-3/);
+    assert.doesNotMatch(answer, /——/);
+    assert.doesNotMatch(answer, /근거 \(라벨/);
+    // preview stays on title/hover only — not a trailing dump section
+    assert.doesNotMatch(answer, /근거 \(라벨 클릭/);
+  });
+
+  it("withEvidenceAnswer can still append footer when asked", () => {
+    const { answer, ragFooter } = withEvidenceAnswer(
+      "see [§Method p.3]",
+      [
+        {
+          chunk: {
+            id: "1",
+            text: "mpc",
+            section: "Method",
+            kind: "parent",
+            tokenEstimate: 1,
+            pageStart: 3,
+          },
+          score: 1,
+          contextText: "MPC residual forces",
+          cite: "[§Method p.3]",
+        },
+      ],
+      { appendFooter: true },
+    );
+    assert.match(ragFooter, /#paperai-page-3/);
     assert.match(answer, /——/);
     assert.match(answer, /MPC residual/);
   });

@@ -1,12 +1,18 @@
 /**
- * Persist paper indexes under ~/.paperai/rag/{itemKey}-{hash16}.json
+ * Persist paper indexes under {dataRoot}/rag/{itemKey}-{hash16}.json
+ * (see utils/dataDir — default: Zotero data dir / paperai).
  */
 
 import type { FileStore } from "../auth/fileStore";
+import {
+  paperAiPath,
+  paperAiRagRoots,
+  resolveReadableFile,
+} from "../utils/dataDir";
 import type { PaperIndex } from "./types";
 
 export function ragRoot(store: FileStore): string {
-  return store.join(store.homeDir(), ".paperai", "rag");
+  return paperAiPath(store, "rag");
 }
 
 export function indexPath(
@@ -23,8 +29,13 @@ export async function loadIndex(
   paperId: string,
   pdfHash: string,
 ): Promise<PaperIndex | null> {
-  const path = indexPath(store, paperId, pdfHash);
-  if (!(await store.exists(path))) return null;
+  const hash16 = pdfHash.slice(0, 16);
+  const path = await resolveReadableFile(
+    store,
+    "rag",
+    `${paperId}-${hash16}.json`,
+  );
+  if (!path) return null;
   try {
     const raw = await store.readText(path);
     const idx = JSON.parse(raw) as PaperIndex;
@@ -56,27 +67,27 @@ export async function findLatestIndexForPaper(
   paperId: string,
 ): Promise<PaperIndex | null> {
   if (!paperId || !store.listDir) return null;
-  const root = ragRoot(store);
-  let names: string[] = [];
-  try {
-    names = await store.listDir(root);
-  } catch {
-    return null;
-  }
   const prefix = `${paperId}-`;
-  const candidates = names
-    .filter((n) => n.startsWith(prefix) && n.endsWith(".json"))
-    .sort();
-  // Prefer last name (stable sort); try newest-looking first by reverse
-  for (const name of candidates.reverse()) {
+  for (const root of paperAiRagRoots(store)) {
+    let names: string[] = [];
     try {
-      const raw = await store.readText(store.join(root, name));
-      const idx = JSON.parse(raw) as PaperIndex;
-      if (idx.version !== 1 || idx.paperId !== paperId) continue;
-      if (!Array.isArray(idx.chunks) || !idx.chunks.length) continue;
-      return idx;
+      names = await store.listDir(root);
     } catch {
-      /* try next */
+      continue;
+    }
+    const candidates = names
+      .filter((n) => n.startsWith(prefix) && n.endsWith(".json"))
+      .sort();
+    for (const name of candidates.reverse()) {
+      try {
+        const raw = await store.readText(store.join(root, name));
+        const idx = JSON.parse(raw) as PaperIndex;
+        if (idx.version !== 1 || idx.paperId !== paperId) continue;
+        if (!Array.isArray(idx.chunks) || !idx.chunks.length) continue;
+        return idx;
+      } catch {
+        /* try next */
+      }
     }
   }
   return null;

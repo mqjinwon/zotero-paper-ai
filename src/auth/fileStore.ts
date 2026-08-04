@@ -2,10 +2,20 @@
  * Minimal filesystem abstraction for OAuth credential files.
  */
 
+/** True for absolute Unix/Windows paths PathUtils will accept. */
+export function isAbsoluteFsPath(p: string): boolean {
+  if (!p) return false;
+  const s = p.trim();
+  if (s.startsWith("/") || s.startsWith("\\\\")) return true;
+  // C:\ or C:/
+  if (/^[A-Za-z]:[\\/]/.test(s)) return true;
+  return false;
+}
+
 export interface FileStore {
   homeDir(): string;
   join(...parts: string[]): string;
-  /** Expand leading ~ and resolve relative auth paths. */
+  /** Expand ~ and relative paths to absolute (PathUtils requires absolute). */
   resolvePath(path: string): string;
   exists(path: string): Promise<boolean>;
   readText(path: string): Promise<string>;
@@ -156,16 +166,58 @@ export function createZoteroFileStore(): FileStore {
     throw new Error("IOUtils/PathUtils not available (not running in Zotero?)");
   }
 
-  const join = (...parts: string[]) => PathUtils.join(...parts);
+  /**
+   * PathUtils.join only accepts a *single* path segment as each extra arg.
+   * `join(home, "Documents/paper/zotero")` throws NS_ERROR_FILE_UNRECOGNIZED_PATH.
+   * Split on / and \ and join one segment at a time.
+   */
+  const join = (...parts: string[]) => {
+    let acc = "";
+    for (const raw of parts) {
+      if (raw == null || raw === "") continue;
+      const part = String(raw);
+      const segs = part.split(/[/\\]+/).filter((s) => s.length > 0);
+
+      if (part.startsWith("/") || part === "/") {
+        // Unix absolute: rebuild from /
+        acc = "/";
+        for (const seg of segs) {
+          acc = acc === "/" ? `/${seg}` : PathUtils.join(acc, seg);
+        }
+        if (!segs.length) acc = "/";
+        continue;
+      }
+
+      if (/^[A-Za-z]:[\\/]?/.test(part)) {
+        // Windows absolute: first segment is drive (C:)
+        acc = segs[0] || part.slice(0, 2);
+        for (let i = 1; i < segs.length; i++) {
+          acc = PathUtils.join(acc, segs[i]);
+        }
+        continue;
+      }
+
+      for (const seg of segs) {
+        acc = acc ? PathUtils.join(acc, seg) : seg;
+      }
+    }
+    return acc;
+  };
 
   const resolvePath = (p: string): string => {
     let path = (p || "").trim();
     if (!path) return path;
     if (path === "~") return resolveZoteroHomeDir();
     if (path.startsWith("~/") || path.startsWith("~\\")) {
-      path = join(resolveZoteroHomeDir(), path.slice(2));
+      const rest = path.slice(2).replace(/^[/\\]+/, "");
+      path = rest ? join(resolveZoteroHomeDir(), rest) : resolveZoteroHomeDir();
+    } else if (!isAbsoluteFsPath(path)) {
+      // Relative → under home (PathUtils rejects bare relative multi-seg paths)
+      path = join(resolveZoteroHomeDir(), path.replace(/^[/\\]+/, ""));
     }
-    return path;
+    // Normalize trailing slashes; keep absolute root
+    const stripped = path.replace(/[/\\]+$/, "");
+    return stripped || path;
   };
 
   return {

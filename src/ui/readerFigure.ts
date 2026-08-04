@@ -282,12 +282,8 @@ export async function runFigureStickyTask(opts: {
       } catch {
         /* ignore */
       }
+      // Inline [§…] links only — no trailing evidence dump
       answer = withEvidenceAnswer(answer, rag.evidence).answer;
-    } else if (rag.ragFooter && answer) {
-      answer = `${answer}\n\n——\n${rag.ragFooter}`;
-    }
-    if (bundle.labels.length && answer) {
-      answer = `${answer}\n\n——\n캡션 후보: ${bundle.labels.slice(0, 6).join(" · ")}`;
     }
     answer = answer || "(empty)";
     await updateStickyAnswer(itemKey, sticky.id, answer, reader, {

@@ -29,9 +29,11 @@ import {
 import {
   focusSticky,
   listStickiesInPaperOrder,
+  isStickyOverlayHidden,
   mountStickiesForReader,
   nextCascadeOffset,
   setAllStickiesCollapsed,
+  setStickyOverlayHidden,
   stickyPageIndex,
   upsertSticky,
   type StickyKind,
@@ -53,6 +55,16 @@ import {
   loadChatHistory,
   saveChatHistory,
 } from "./chatStore";
+import { runPaperSummary } from "./paperSummary";
+import {
+  deleteAllAutoAnnotations,
+  deleteAutoAnnotation,
+  listAutoAnnotations,
+  runAutoHighlight,
+  getAutoHighlightClass,
+  legendLines,
+  type AppliedAutoHighlight,
+} from "../rag/autoHighlight";
 import {
   createPanelSession,
   getLastPanelSession,
@@ -61,12 +73,14 @@ import {
   setSessionStatus,
   type PanelSession,
 } from "./panelSession";
+import { navigateReaderToPage } from "./markdown";
 import {
   buildPanelDom,
   INDEX_BTN_RUNNING,
   setIndexButtonState,
 } from "./panelView";
 import { getReaderSelectionText, saveAnswerAsNote } from "./reader";
+import { loadPaperSummary, savePaperSummary } from "./summaryStore";
 
 export type { ChatTurn };
 
@@ -200,7 +214,7 @@ export function mountPanel(doc: Document, container: HTMLElement): void {
         if (!act) return;
         ev.preventDefault();
         ev.stopPropagation();
-        handleAct(session, act);
+        handleAct(session, act, t);
       },
       true,
     );
@@ -219,6 +233,8 @@ export function mountPanel(doc: Document, container: HTMLElement): void {
     void refreshIndexButtonStatus(session);
     void refreshStickyList(session);
     void restoreChatHistory(session);
+    void restorePaperSummary(session);
+    void refreshAutoHighlightList(session);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     try {
@@ -267,11 +283,110 @@ async function restoreChatHistory(session: PanelSession): Promise<void> {
   renderLog(session);
   setSessionStatus(
     session,
-    `대화 기록 ${hist.length}턴 복원 (이 논문 · 종료 후에도 유지)`,
+    `대화 기록 ${hist.length}턴 복원 (이 논문 노트 · Zotero 동기화)`,
   );
 }
 
-function handleAct(session: PanelSession, act: string): void {
+function paintSummaryBody(session: PanelSession, markdown: string): void {
+  const body = sessionEl(session, "[data-pai-summary]");
+  if (!body) return;
+  const md = (markdown || "").trim();
+  body.classList.remove("is-empty");
+  if (!md) {
+    body.classList.add("is-empty");
+    body.textContent = "아직 요약이 없습니다. 「요약 생성하기」를 누르세요.";
+    return;
+  }
+  body.textContent = "";
+  const wrap = session.root.ownerDocument!.createElement("div");
+  wrap.className = "pai-md";
+  const ok = setMarkdownHtmlWithCites(wrap, md);
+  if (!ok) {
+    body.textContent = md;
+    return;
+  }
+  body.appendChild(wrap);
+}
+
+async function restorePaperSummary(session: PanelSession): Promise<void> {
+  const key = chatItemKey();
+  if (!key) return;
+  const rec = await loadPaperSummary(key);
+  if (!rec?.markdown) return;
+  paintSummaryBody(session, rec.markdown);
+  session.lastAnswer = rec.markdown;
+}
+
+async function runSummarize(session: PanelSession): Promise<void> {
+  if (session.busy) {
+    setSessionStatus(session, "다른 작업이 진행 중입니다…");
+    return;
+  }
+  const paper = getOpenPaperRef();
+  if (!paper?.itemKey) {
+    setSessionStatus(
+      session,
+      "요약을 만들 PDF를 찾지 못했습니다. PDF 탭을 연 뒤 다시 시도하세요.",
+    );
+    return;
+  }
+
+  setSessionBusy(session, true);
+  const btnEl = session.root.querySelector(
+    "[data-act='summarize']",
+  ) as HTMLButtonElement | null;
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = "요약 생성 중…";
+  }
+
+  let streamed = "";
+  try {
+    const store = createZoteroFileStore();
+    const result = await runPaperSummary({
+      store,
+      paper,
+      onStatus: (s) => setSessionStatus(session, s),
+      onDelta: (t) => {
+        streamed += t;
+        paintSummaryBody(session, streamed);
+      },
+    });
+    paintSummaryBody(session, result.markdown);
+    session.lastAnswer = result.markdown;
+    await savePaperSummary(paper.itemKey, result.markdown, {
+      provider: result.provider,
+      model: result.model,
+    });
+    if (result.indexLabel) {
+      setIndexButtonState(session.root, "ready", result.indexLabel);
+    }
+    setSessionStatus(
+      session,
+      `요약 완료 (${result.provider} · ${result.model}` +
+        `${result.usedRag ? " · RAG" : ""}) · 이 논문 노트에 저장됨`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    diag("ui", "summary fail", msg);
+    if (!streamed.trim()) {
+      paintSummaryBody(session, "");
+    }
+    setSessionStatus(session, `요약 실패: ${msg}`);
+  } finally {
+    setSessionBusy(session, false);
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = "요약 생성하기";
+    }
+  }
+}
+
+function handleAct(
+  session: PanelSession,
+  act: string,
+  el?: HTMLElement | null,
+): void {
   if (act === "clear") {
     session.history.length = 0;
     session.lastAnswer = "";
@@ -335,12 +450,71 @@ function handleAct(session: PanelSession, act: string): void {
     void runManualIndex(session);
     return;
   }
+  if (act === "summarize") {
+    void runSummarize(session);
+    return;
+  }
+  if (act === "autohl-run") {
+    void runAutoHighlightAction(session);
+    return;
+  }
+  if (act === "autohl-clear") {
+    void clearAutoHighlights(session);
+    return;
+  }
+  if (act === "autohl-refresh") {
+    void refreshAutoHighlightList(session);
+    return;
+  }
+  if (act === "autohl-del" || act === "autohl-go") {
+    const key = el?.getAttribute("data-key") || "";
+    const page = el?.getAttribute("data-page") || "";
+    if (act === "autohl-del" && key) {
+      void (async () => {
+        await deleteAutoAnnotation(key);
+        await refreshAutoHighlightList(session);
+        setSessionStatus(session, "자동 하이라이트 1개를 삭제했습니다.");
+      })();
+    } else if (act === "autohl-go" && page) {
+      void navigateReaderToPage(Number(page));
+    }
+    return;
+  }
   if (act === "chat") {
     void runAction(session, act);
     return;
   }
   if (act === "sticky-refresh") {
     void refreshStickyList(session);
+    return;
+  }
+  if (act === "sticky-toggle-overlay") {
+    void (async () => {
+      const paper = getOpenPaperRef();
+      if (!paper?.itemKey) {
+        setSessionStatus(session, "열린 PDF가 없습니다.");
+        return;
+      }
+      const Z = (globalThis as any).Zotero;
+      const reader =
+        Z?.Reader?.getByTabID?.(
+          Z?.getMainWindow?.()?.Zotero_Tabs?.selectedID,
+        ) || Z?.Reader?._readers?.[Z.Reader._readers.length - 1];
+      const nextHidden = !isStickyOverlayHidden(paper.itemKey);
+      setStickyOverlayHidden(paper.itemKey, nextHidden, reader);
+      if (reader) {
+        await mountStickiesForReader(reader, paper.itemKey, {
+          forceReload: false,
+        });
+      }
+      updateStickyOverlayButton(session, paper.itemKey);
+      setSessionStatus(
+        session,
+        nextHidden
+          ? "PDF 위 메모를 숨겼습니다. 목록은 유지됩니다. 「PDF에 보이기」로 다시 켤 수 있습니다."
+          : "PDF 위 메모를 다시 표시합니다.",
+      );
+    })();
     return;
   }
   if (act === "sticky-collapse-all" || act === "sticky-expand-all") {
@@ -373,6 +547,162 @@ function handleAct(session: PanelSession, act: string): void {
   }
 }
 
+function getActiveReader(): any {
+  try {
+    const Z = (globalThis as any).Zotero;
+    return (
+      Z?.Reader?.getByTabID?.(Z?.getMainWindow?.()?.Zotero_Tabs?.selectedID) ||
+      Z?.Reader?._readers?.[Z.Reader._readers.length - 1]
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function refreshAutoHighlightList(session: PanelSession): Promise<void> {
+  const listEl = sessionEl(session, "[data-pai-autohl-list]");
+  if (!listEl) return;
+  const doc = session.root.ownerDocument!;
+  listEl.textContent = "";
+  let rows: AppliedAutoHighlight[] = [];
+  try {
+    rows = listAutoAnnotations();
+  } catch {
+    rows = [];
+  }
+  const legendEl = sessionEl(session, "[data-pai-autohl-legend]");
+  if (legendEl) {
+    legendEl.textContent =
+      legendLines().join(" · ") +
+      " · 태그 paper-ai-auto 로 수동 주석과 구분. 설정에서 개수·색 변경 가능.";
+  }
+
+  if (!rows.length) {
+    const empty = doc.createElement("div");
+    empty.className = "pai-muted";
+    empty.textContent =
+      "아직 자동 하이라이트가 없습니다. 「생성하기」를 누르세요.";
+    listEl.appendChild(empty);
+    return;
+  }
+  for (const r of rows) {
+    const cls = getAutoHighlightClass(r.category);
+    const row = doc.createElement("div");
+    row.className = "pai-autohl-row";
+
+    const sw = doc.createElement("span");
+    sw.className =
+      "pai-autohl-swatch" + (cls.type === "underline" ? " uline" : "");
+    sw.style.background = cls.type === "highlight" ? cls.color : "transparent";
+    sw.style.color = cls.color;
+    sw.style.borderBottomColor = cls.color;
+
+    const meta = doc.createElement("div");
+    meta.className = "pai-autohl-meta";
+    const head = doc.createElement("div");
+    head.className = "pai-muted";
+    head.textContent = `${cls.labelKo} · p.${r.pageLabel}`;
+    const quote = doc.createElement("div");
+    quote.className = "pai-autohl-quote";
+    quote.textContent = r.quote || "(empty)";
+    meta.appendChild(head);
+    meta.appendChild(quote);
+
+    const actions = doc.createElement("div");
+    actions.className = "pai-actions";
+    const go = doc.createElement("button");
+    go.type = "button";
+    go.className = "pai-btn ghost";
+    go.setAttribute("data-act", "autohl-go");
+    go.setAttribute("data-page", r.pageLabel);
+    go.textContent = "이동";
+    const del = doc.createElement("button");
+    del.type = "button";
+    del.className = "pai-btn ghost";
+    del.setAttribute("data-act", "autohl-del");
+    del.setAttribute("data-key", r.key);
+    del.textContent = "삭제";
+    actions.appendChild(go);
+    actions.appendChild(del);
+
+    row.appendChild(sw);
+    row.appendChild(meta);
+    row.appendChild(actions);
+    listEl.appendChild(row);
+  }
+}
+
+async function runAutoHighlightAction(session: PanelSession): Promise<void> {
+  if (session.busy) {
+    setSessionStatus(session, "다른 작업이 진행 중입니다…");
+    return;
+  }
+  setSessionBusy(session, true);
+  const btnEl = session.root.querySelector(
+    "[data-act='autohl-run']",
+  ) as HTMLButtonElement | null;
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = "생성 중…";
+  }
+  try {
+    const store = createZoteroFileStore();
+    const result = await runAutoHighlight({
+      store,
+      reader: getActiveReader(),
+      onStatus: (s) => setSessionStatus(session, s),
+    });
+    await refreshAutoHighlightList(session);
+    setSessionStatus(
+      session,
+      `자동 하이라이트 완료: ${result.applied.length}개 표시` +
+        (result.skipped ? ` · 위치 실패 ${result.skipped}` : "") +
+        ` (후보 ${result.candidateCount} · 분류 ${result.classifiedCount})`,
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    diag("ui", "autohl fail", msg);
+    setSessionStatus(session, `자동 하이라이트 실패: ${msg}`);
+  } finally {
+    setSessionBusy(session, false);
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = "생성하기";
+    }
+  }
+}
+
+async function clearAutoHighlights(session: PanelSession): Promise<void> {
+  try {
+    const n = await deleteAllAutoAnnotations();
+    await refreshAutoHighlightList(session);
+    setSessionStatus(
+      session,
+      n
+        ? `자동 하이라이트 ${n}개를 삭제했습니다. (수동 주석은 유지)`
+        : "삭제할 자동 하이라이트가 없습니다.",
+    );
+  } catch (e) {
+    setSessionStatus(session, e instanceof Error ? e.message : String(e));
+  }
+}
+
+function updateStickyOverlayButton(
+  session: PanelSession,
+  itemKey?: string,
+): void {
+  const btnEl = session.root.querySelector(
+    "[data-act='sticky-toggle-overlay']",
+  ) as HTMLButtonElement | null;
+  if (!btnEl) return;
+  const key = itemKey || getOpenPaperRef()?.itemKey || "";
+  const hidden = key ? isStickyOverlayHidden(key) : false;
+  btnEl.textContent = hidden ? "PDF에 보이기" : "PDF에서 숨기기";
+  btnEl.title = hidden
+    ? "PDF 리더 위에 메모 카드·연결선을 다시 표시"
+    : "PDF 리더 위 메모만 숨김 (목록·데이터 유지)";
+}
+
 function kindLabelKo(kind: StickyKind | string): string {
   switch (kind) {
     case "translate":
@@ -393,6 +723,7 @@ async function refreshStickyList(session: PanelSession): Promise<void> {
   if (!listEl) return;
   const paper = getOpenPaperRef();
   listEl.textContent = "";
+  updateStickyOverlayButton(session, paper?.itemKey);
   if (!paper?.itemKey) {
     const empty = session.root.ownerDocument!.createElement("div");
     empty.className = "pai-muted";
@@ -547,10 +878,16 @@ async function runManualIndex(session: PanelSession): Promise<void> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     diag("ui", "index fail", { paper, msg });
-    setIndexButtonState(session.root, "failed", "인덱싱 실패 · 다시 시도");
+    const short =
+      msg.includes("Empty paper extract") || msg.includes("no extractable")
+        ? "인덱싱 실패 · PDF 텍스트 없음"
+        : msg.includes("저장 실패") || msg.includes("save")
+          ? "인덱싱 실패 · 저장 오류"
+          : "인덱싱 실패 · 다시 시도";
+    setIndexButtonState(session.root, "failed", short);
     setSessionStatus(
       session,
-      `인덱싱 실패 (${describeOpenPaperRef(paper)}): ${msg} — 「진단 로그 복사」로 상세를 보낼 수 있습니다.`,
+      `인덱싱 실패 (${describeOpenPaperRef(paper)}): ${msg} — PDF 탭을 연 상태로 다시 시도하거나 「진단 로그 복사」로 상세를 확인하세요.`,
     );
   } finally {
     session.indexBusy = false;

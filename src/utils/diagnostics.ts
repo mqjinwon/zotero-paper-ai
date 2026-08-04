@@ -59,6 +59,10 @@ export function buildDiagnosticReport(extra?: Record<string, unknown>): string {
     readerCount: Z?.Reader?._readers?.length ?? null,
     selectedTab: null as string | null,
     selectedTabType: null as string | null,
+    zoteroDataDir: null as string | null,
+    paperaiDataDirPref: null as string | null,
+    chatStickyStore: "zotero-item-notes (paper-ai-chat / paper-ai-sticky)",
+    ragStore: "disk under dataDir/rag",
     ...extra,
   };
   try {
@@ -66,6 +70,18 @@ export function buildDiagnosticReport(extra?: Record<string, unknown>): string {
     const tabs = win?.Zotero_Tabs;
     env.selectedTab = tabs?.selectedID ?? null;
     env.selectedTabType = tabs?.selectedType ?? null;
+  } catch {
+    /* ignore */
+  }
+  try {
+    env.zoteroDataDir =
+      Z?.DataDirectory?.dir || Z?.DataDirectory?.defaultDir || null;
+  } catch {
+    /* ignore */
+  }
+  try {
+    env.paperaiDataDirPref =
+      Z?.Prefs?.get?.("extensions.zotero.paperai.dataDir", true) ?? null;
   } catch {
     /* ignore */
   }

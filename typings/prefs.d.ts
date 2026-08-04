@@ -13,6 +13,7 @@ declare namespace _ZoteroTypes {
       "grokBaseUrl": string;
       "grokAuthPath": string;
       "codexAuthPath": string;
+      "dataDir": string;
       "targetLang": string;
       "autoTranslateOnSelect": boolean;
       "autoTranslateMinChars": number;
@@ -43,6 +44,16 @@ declare namespace _ZoteroTypes {
       "embeddingBaseUrl": string;
       "embeddingApiKey": string;
       "embeddingModel": string;
+      "autoHlMaxTotal": number;
+      "autoHlMaxPerCategory": number;
+      "autoHlClaimColor": string;
+      "autoHlClaimType": string;
+      "autoHlMethodColor": string;
+      "autoHlMethodType": string;
+      "autoHlNoveltyColor": string;
+      "autoHlNoveltyType": string;
+      "autoHlCaveatColor": string;
+      "autoHlCaveatType": string;
     };
   }
 }

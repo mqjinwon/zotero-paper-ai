@@ -34,15 +34,28 @@ describe("panel DOM (linkedom / shipped buildPanelDom)", () => {
     const root = buildPanelDom(doc, container);
     const c = countPanelControls(root);
 
-    assert.ok(c.cards >= 3, `expected ≥3 cards, got ${c.cards}`);
-    assert.ok(c.actions >= 6, `expected ≥6 actions, got ${c.actions}`);
+    assert.ok(c.cards >= 4, `expected ≥4 cards, got ${c.cards}`);
+    assert.ok(c.actions >= 10, `expected ≥10 actions, got ${c.actions}`);
+    assert.ok(
+      root.querySelector("[data-act='sticky-toggle-overlay']"),
+      "sticky hide/show toggle present",
+    );
+    assert.ok(
+      root.querySelector("[data-act='autohl-run']"),
+      "auto-highlight run present",
+    );
+    assert.ok(root.querySelector("[data-pai-autohl-list]"));
     assert.equal(c.hasIndex, true);
     assert.equal(c.hasChat, true);
+    assert.equal(c.hasSummary, true);
     assert.equal(c.hasFigure, false); // figure UX on PDF reader
     assert.ok(
       root.querySelector("[data-pai-sticky-list]"),
       "sticky list present",
     );
+    assert.ok(root.querySelector("[data-pai-summary]"), "summary body present");
+    const sumBtn = root.querySelector("[data-act='summarize']");
+    assert.match(sumBtn?.textContent || "", /요약 생성/);
 
     const title = root.querySelector(".pai-title");
     assert.ok(title, "title present");

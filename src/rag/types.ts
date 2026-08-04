@@ -27,6 +27,14 @@ export interface Chunk {
   section: string;
   pageStart?: number;
   pageEnd?: number;
+  /** 1-based paragraph index within the section (inclusive). */
+  paraStart?: number;
+  paraEnd?: number;
+  /** 1-based sentence index within paraStart (inclusive), when known. */
+  sentStart?: number;
+  sentEnd?: number;
+  /** Short needle for PDF text-search navigation (prefer first sentence). */
+  anchorText?: string;
   /** parent chunk id for expansion */
   parentId?: string;
   kind: "child" | "parent" | "abstract";
@@ -102,7 +110,7 @@ export const DEFAULT_RAG_PREFS: RagPrefs = {
 };
 
 /** Bump when chunk defaults change so caches rebuild. */
-export const CHUNK_POLICY = "section-parent-child-v3-pages";
+export const CHUNK_POLICY = "section-para-sent-v4";
 export const INDEX_VERSION = 1 as const;
 
 /** Modes that use full-paper RAG evidence. */

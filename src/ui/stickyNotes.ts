@@ -1,10 +1,15 @@
 /**
  * Sticky result cards on the PDF reader (explain / figure).
- * Stay until the user closes them; persisted under ~/.paperai/sticky/.
+ * Stay until the user closes them.
+ * Primary: Zotero child note (library sync). Fallback read: dataDir file.
  */
 
-import type { FileStore } from "../auth/fileStore";
 import { createZoteroFileStore } from "../auth/fileStore";
+import {
+  loadItemNotePayload,
+  saveItemNotePayload,
+} from "../storage/itemNoteStore";
+import { resolveReadableFile } from "../utils/dataDir";
 import { diag } from "../utils/diagnostics";
 import { setMarkdownHtmlWithCites } from "./markdown";
 // Bundled as text via esbuild loader
@@ -46,8 +51,71 @@ import {
 // In-memory cache keyed by itemKey
 const byItem = new Map<string, StickyNote[]>();
 
-function stickyPath(store: FileStore, itemKey: string): string {
-  return store.join(store.homeDir(), ".paperai", "sticky", `${itemKey}.json`);
+/**
+ * When true, sticky host is display:none on the PDF (panel list still works).
+ * Session-scoped per itemKey — not persisted (easy to re-show).
+ */
+const overlayHiddenByItem = new Map<string, boolean>();
+
+/** Cap image data-URLs stored in the synced note. */
+const MAX_STICKY_IMAGE_CHARS = 200_000;
+
+export function isStickyOverlayHidden(itemKey: string): boolean {
+  return !!itemKey && overlayHiddenByItem.get(itemKey) === true;
+}
+
+/** Hide/show all sticky cards + connectors on the PDF reader. */
+export function setStickyOverlayHidden(
+  itemKey: string,
+  hidden: boolean,
+  reader?: any,
+): void {
+  if (!itemKey) return;
+  overlayHiddenByItem.set(itemKey, hidden);
+  applyOverlayVisibilityToOpenReaders(itemKey, reader);
+}
+
+function applyHostVisibility(host: HTMLElement, itemKey: string): void {
+  const hidden = isStickyOverlayHidden(itemKey);
+  host.dataset.itemKey = itemKey;
+  host.dataset.paperaiHidden = hidden ? "1" : "0";
+  host.style.display = hidden ? "none" : "block";
+  // Keep pointer-events off on host; cards re-enable locally when visible
+  if (hidden) {
+    host.style.visibility = "hidden";
+  } else {
+    host.style.visibility = "visible";
+  }
+}
+
+function applyOverlayVisibilityToOpenReaders(
+  itemKey: string,
+  preferredReader?: any,
+): void {
+  const readers: any[] = [];
+  if (preferredReader) readers.push(preferredReader);
+  try {
+    const Z = (globalThis as any).Zotero;
+    for (const r of Z?.Reader?._readers || []) {
+      if (r && !readers.includes(r)) readers.push(r);
+    }
+  } catch {
+    /* ignore */
+  }
+  for (const reader of readers) {
+    try {
+      for (const doc of readerDocCandidates(reader)) {
+        const host = doc.getElementById?.(HOST_ID) as HTMLElement | null;
+        if (!host) continue;
+        // Match host itemKey if set; otherwise apply when this is preferred reader
+        const hk = host.dataset.itemKey || "";
+        if (hk && hk !== itemKey && preferredReader !== reader) continue;
+        applyHostVisibility(host, itemKey);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function dedupeNotes(list: StickyNote[]): StickyNote[] {
@@ -63,6 +131,52 @@ function dedupeNotes(list: StickyNote[]): StickyNote[] {
   return [...byId.values()];
 }
 
+function sanitizeStickies(list: StickyNote[]): StickyNote[] {
+  return dedupeNotes(
+    list
+      .filter((n) => n?.id && n.pinned !== false)
+      .map((n) => {
+        const copy = { ...n };
+        if (
+          copy.imageDataUrl &&
+          copy.imageDataUrl.length > MAX_STICKY_IMAGE_CHARS
+        ) {
+          delete copy.imageDataUrl;
+        }
+        return copy;
+      }),
+  );
+}
+
+function parseStickyPayload(payload: unknown): StickyNote[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return sanitizeStickies(payload as StickyNote[]);
+  const obj = payload as { stickies?: StickyNote[] };
+  if (Array.isArray(obj.stickies)) return sanitizeStickies(obj.stickies);
+  return [];
+}
+
+async function loadStickiesFromFile(itemKey: string): Promise<StickyNote[]> {
+  try {
+    const store = createZoteroFileStore();
+    const path = await resolveReadableFile(store, "sticky", `${itemKey}.json`);
+    if (!path) return [];
+    const raw = await store.readText(path);
+    const list = JSON.parse(raw) as StickyNote[];
+    const notes = sanitizeStickies(Array.isArray(list) ? list : []);
+    if (notes.length) {
+      diag("sticky", "loaded from file (legacy)", {
+        itemKey,
+        count: notes.length,
+        path,
+      });
+    }
+    return notes;
+  } catch {
+    return [];
+  }
+}
+
 export async function loadStickies(
   itemKey: string,
   opts?: { forceReload?: boolean },
@@ -72,22 +186,24 @@ export async function loadStickies(
     return dedupeNotes(byItem.get(itemKey)!);
   }
   try {
-    const store = createZoteroFileStore();
-    const path = stickyPath(store, itemKey);
-    if (!(await store.exists(path))) {
-      byItem.set(itemKey, []);
-      return [];
-    }
-    const raw = await store.readText(path);
-    const list = JSON.parse(raw) as StickyNote[];
-    const notes = dedupeNotes(
-      Array.isArray(list)
-        ? list.filter((n) => n?.id && n.pinned !== false)
-        : [],
+    const fromNote = parseStickyPayload(
+      await loadItemNotePayload(itemKey, "sticky"),
     );
-    byItem.set(itemKey, notes);
-    diag("sticky", "loaded from disk", { itemKey, count: notes.length, path });
-    return notes;
+    if (fromNote.length) {
+      byItem.set(itemKey, fromNote);
+      diag("sticky", "loaded from Zotero note", {
+        itemKey,
+        count: fromNote.length,
+      });
+      return fromNote;
+    }
+    const fromFile = await loadStickiesFromFile(itemKey);
+    byItem.set(itemKey, fromFile);
+    if (fromFile.length) {
+      // Migrate once into library sync
+      void saveStickies(itemKey);
+    }
+    return fromFile;
   } catch (e) {
     diag("sticky", "load fail", String(e));
     byItem.set(itemKey, []);
@@ -98,12 +214,18 @@ export async function loadStickies(
 export async function saveStickies(itemKey: string): Promise<void> {
   if (!itemKey) return;
   try {
-    const store = createZoteroFileStore();
-    const notes = byItem.get(itemKey) || [];
-    await store.writeText(
-      stickyPath(store, itemKey),
-      JSON.stringify(notes, null, 2),
-    );
+    const notes = sanitizeStickies(byItem.get(itemKey) || []);
+    byItem.set(itemKey, notes);
+    const payload = {
+      itemKey,
+      updatedAt: new Date().toISOString(),
+      stickies: notes,
+    };
+    const ok = await saveItemNotePayload(itemKey, "sticky", payload);
+    diag("sticky", ok ? "saved to Zotero note" : "save failed", {
+      itemKey,
+      count: notes.length,
+    });
   } catch (e) {
     diag("sticky", "save fail", String(e));
   }
@@ -1777,10 +1899,14 @@ export async function mountStickiesForReader(
     host.querySelectorAll(`[${CARD_ATTR}]`).forEach((n: Element) => n.remove());
     // keep / recreate svg after clearing cards only
     host.querySelector(`#${SVG_ID}`)?.remove();
+    applyHostVisibility(host, itemKey);
 
     const seen = new Set<string>();
     const active: StickyNote[] = [];
-    const redraw = () => redrawConnectors(doc, host, active, reader);
+    const redraw = () => {
+      if (isStickyOverlayHidden(itemKey)) return;
+      redrawConnectors(doc, host, active, reader);
+    };
 
     for (const note of notes) {
       if (!note?.id || seen.has(note.id)) continue;
@@ -1797,16 +1923,19 @@ export async function mountStickiesForReader(
       );
       host.appendChild(card);
     }
-    redraw();
-    installConnectorScrollHook(doc, reader, redraw);
-    // Re-draw after layout / scroll settle
-    setTimeout(redraw, 50);
-    setTimeout(redraw, 200);
-    setTimeout(redraw, 800);
+    if (!isStickyOverlayHidden(itemKey)) {
+      redraw();
+      installConnectorScrollHook(doc, reader, redraw);
+      // Re-draw after layout / scroll settle
+      setTimeout(redraw, 50);
+      setTimeout(redraw, 200);
+      setTimeout(redraw, 800);
+    }
 
     diag("sticky", "mounted", {
       itemKey,
       count: seen.size,
+      hidden: isStickyOverlayHidden(itemKey),
       hostCards: host.querySelectorAll(`[${CARD_ATTR}]`).length,
       pages: doc.querySelectorAll("[data-page-number], .page").length,
       hasPdfApp: !!(
@@ -1856,6 +1985,10 @@ export async function focusSticky(
   n.collapsed = false;
   byItem.set(itemKey, list);
   await saveStickies(itemKey);
+  // Panel click should reveal overlay even if user hid stickies
+  if (isStickyOverlayHidden(itemKey)) {
+    setStickyOverlayHidden(itemKey, false, reader);
+  }
   if (reader) {
     await mountStickiesForReader(reader, itemKey);
     await navigateToNote(reader, n);
@@ -2217,7 +2350,26 @@ export async function saveAsPdfAnnotation(opts: {
     const pageLabel = String(
       opts.annotationParams?.annotation?.pageLabel || "1",
     );
+    // Zotero 9 requires key in annotation JSON
+    let key = "";
+    try {
+      key =
+        Z.DataObjectUtilities?.generateKey?.() ||
+        Z.Utilities?.randomString?.(8, "23456789ABCDEFGHIJKLMNPQRSTUVWXYZ") ||
+        Z.randomString?.(8) ||
+        "";
+    } catch {
+      key = "";
+    }
+    if (!key) {
+      const chars = "23456789ABCDEFGHIJKLMNPQRSTUVWXYZ";
+      for (let i = 0; i < 8; i++) {
+        key += chars[Math.floor(Math.random() * chars.length)];
+      }
+    }
     const json = {
+      key,
+      id: key,
       type: "highlight" as const,
       text: opts.quote.slice(0, 2000),
       comment: `[Paper AI · ${kindLabel(opts.kind)}]\n${opts.answer}`.slice(

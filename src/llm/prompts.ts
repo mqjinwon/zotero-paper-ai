@@ -27,7 +27,7 @@ export function buildSystemPrompt(
         "1) What it says (precise meaning)\n" +
         "2) Why it matters here (role in the argument/method)\n" +
         "3) Assumptions / caveats if any\n" +
-        "Cite evidence labels like [§Body (2)] when you rely on them. If evidence is thin, say what is missing.\n" +
+        "Cite evidence labels exactly as given (e.g. [§Introduction ¶2 s3] or [§Method ¶1]) when you rely on them. If evidence is thin, say what is missing.\n" +
         MATH_PRESERVE
       );
 
@@ -49,7 +49,7 @@ export function buildSystemPrompt(
         `You are a research co-reader for academic papers. Reply in ${targetLang} unless asked otherwise.\n` +
         "Answer from the provided paper evidence when present. Prefer precise, paper-grounded answers over general knowledge.\n" +
         "If the question needs a derivation or definition, walk it briefly and clearly.\n" +
-        "Cite [§…] labels when using evidence. If evidence is insufficient, say so and what would resolve it.\n" +
+        "Cite exact [§…] labels from evidence (prefer ¶paragraph / s sentence forms when present). If evidence is insufficient, say so and what would resolve it.\n" +
         "Be concise: lead with the answer, then brief support. Avoid filler.\n" +
         MATH_PRESERVE
       );
@@ -99,4 +99,44 @@ export function buildUserPayload(opts: {
 /** Modes that attach paper RAG evidence when enabled. Prefer shouldUseRag. */
 export function modeUsesPaperRag(mode: TaskMode): boolean {
   return mode === "chat" || mode === "explain" || mode === "figure-explain";
+}
+
+/** Broad retrieval query for whole-paper bullet summary. */
+export const PAPER_SUMMARY_RAG_QUERY =
+  "abstract contribution method results conclusions novelty findings limitations main claims";
+
+/**
+ * System prompt for 3–5 bullet paper summary (panel top action).
+ * Uses chat feature model/provider; not a separate TaskMode.
+ */
+export function buildSummarySystemPrompt(targetLang: string): string {
+  return (
+    `You are a research co-reader. Reply in ${targetLang}.\n` +
+    "Task: write a concise whole-paper summary as Markdown bullet points only.\n" +
+    "Hard rules:\n" +
+    "- Output **exactly 3 to 5** bullets (no more, no fewer if the paper supports 3+).\n" +
+    "- Each bullet: one short sentence (about 12–28 words).\n" +
+    "- Cover: problem/goal, method/approach, key result or claim, and (if space) contribution or limitation.\n" +
+    "- Ground every bullet in the provided paper evidence. Do not invent numbers or citations.\n" +
+    "- No title, no preamble, no closing remark — bullets only (lines starting with `- `).\n" +
+    MATH_PRESERVE
+  );
+}
+
+export function buildSummaryUserPayload(opts: {
+  paperTitle?: string;
+  context?: string;
+}): string {
+  const parts: string[] = [
+    "Summarize this paper in 3–5 Markdown bullets as specified in the system prompt.",
+  ];
+  if (opts.paperTitle) parts.push(`Paper title: ${opts.paperTitle}`);
+  if (opts.context?.trim()) {
+    parts.push(`Paper evidence (RAG):\n${opts.context.trim()}`);
+  } else {
+    parts.push(
+      "No retrieved evidence was available. If you cannot ground a summary, say so in one bullet.",
+    );
+  }
+  return parts.join("\n\n");
 }

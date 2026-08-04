@@ -4,6 +4,8 @@ pref("extensions.zotero.paperai.grokApiKey", "");
 pref("extensions.zotero.paperai.grokBaseUrl", "https://api.x.ai/v1");
 pref("extensions.zotero.paperai.grokAuthPath", "");
 pref("extensions.zotero.paperai.codexAuthPath", "");
+/* Empty = {Zotero data directory}/paperai; override absolute or ~/path */
+pref("extensions.zotero.paperai.dataDir", "");
 pref("extensions.zotero.paperai.targetLang", "ko");
 pref("extensions.zotero.paperai.autoTranslateOnSelect", true);
 pref("extensions.zotero.paperai.autoTranslateMinChars", 8);
@@ -48,3 +50,15 @@ pref("extensions.zotero.paperai.embeddingProvider", "none");
 pref("extensions.zotero.paperai.embeddingBaseUrl", "");
 pref("extensions.zotero.paperai.embeddingApiKey", "");
 pref("extensions.zotero.paperai.embeddingModel", "text-embedding-3-small");
+
+// Auto-highlight (claim / method / novelty / caveat)
+pref("extensions.zotero.paperai.autoHlMaxTotal", 16);
+pref("extensions.zotero.paperai.autoHlMaxPerCategory", 4);
+pref("extensions.zotero.paperai.autoHlClaimColor", "#ffd400");
+pref("extensions.zotero.paperai.autoHlClaimType", "highlight");
+pref("extensions.zotero.paperai.autoHlMethodColor", "#2ea8e5");
+pref("extensions.zotero.paperai.autoHlMethodType", "underline");
+pref("extensions.zotero.paperai.autoHlNoveltyColor", "#5fb236");
+pref("extensions.zotero.paperai.autoHlNoveltyType", "highlight");
+pref("extensions.zotero.paperai.autoHlCaveatColor", "#ff6666");
+pref("extensions.zotero.paperai.autoHlCaveatType", "underline");

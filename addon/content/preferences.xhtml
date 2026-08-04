@@ -6,6 +6,29 @@
 >
   <label><html:h2>Paper AI Colleague</html:h2></label>
 
+  <label><html:h3>Data storage</html:h3></label>
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-dataDir"
+      >Data directory</html:label
+    >
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-dataDir"
+      preference="dataDir"
+      placeholder="empty = Zotero data dir / paperai"
+      style="min-width: 280px; flex: 1"
+    />
+  </hbox>
+  <html:p
+    id="__addonRef__-dataDir-resolved"
+    style="margin: 0 0 8px; color: #555; font-size: 11px"
+  >
+    Empty (recommended) → Zotero Data Directory / paperai (RAG only). Absolute
+    (/home/…), ~/…, or relative (from home; or a suffix of the Zotero data dir)
+    are all OK — relative is expanded to absolute before write. Chat/sticky use
+    library notes. OAuth: ~/.grok / ~/.codex.
+  </html:p>
+
   <label><html:h3>Global (fallback)</html:h3></label>
 
   <hbox align="center">
@@ -487,6 +510,152 @@
       placeholder="text-embedding-3-small"
       style="min-width: 180px"
     />
+  </hbox>
+
+  <label><html:h3>자동 하이라이트</html:h3></label>
+  <html:p
+    style="margin: 0 0 8px; color: #444; font-size: 11px; line-height: 1.45"
+  >
+    논문 중요 구간을 PDF 주석으로 표시합니다. 색·스타일(하이라이트/밑줄)을 바꿀
+    수 있습니다. 태그 <html:b>paper-ai-auto</html:b> 로 수동 주석과 구분됩니다.
+    개수를 너무 크게 잡으면 PDF가 번잡해질 수 있습니다.
+  </html:p>
+
+  <hbox align="center">
+    <html:label for="zotero-prefpane-__addonRef__-autoHlMaxTotal"
+      >전체 최대 개수</html:label
+    >
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-autoHlMaxTotal"
+      preference="autoHlMaxTotal"
+      min="1"
+      max="64"
+      style="width: 64px"
+    />
+    <html:label for="zotero-prefpane-__addonRef__-autoHlMaxPerCategory"
+      >카테고리당 최대</html:label
+    >
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-autoHlMaxPerCategory"
+      preference="autoHlMaxPerCategory"
+      min="1"
+      max="32"
+      style="width: 64px"
+    />
+  </hbox>
+
+  <!-- Claim -->
+  <hbox align="center">
+    <html:label style="min-width: 88px">주장·결과</html:label>
+    <html:input
+      type="color"
+      id="zotero-prefpane-__addonRef__-autoHlClaimColor"
+      preference="autoHlClaimColor"
+      style="width: 48px; height: 28px; padding: 0; border: 1px solid #ccc"
+    />
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-autoHlClaimColorText"
+      preference="autoHlClaimColor"
+      placeholder="#ffd400"
+      style="width: 88px"
+    />
+    <menulist
+      id="zotero-prefpane-__addonRef__-autoHlClaimType"
+      preference="autoHlClaimType"
+      native="true"
+    >
+      <menupopup>
+        <menuitem value="highlight" label="하이라이트" />
+        <menuitem value="underline" label="밑줄" />
+      </menupopup>
+    </menulist>
+  </hbox>
+
+  <!-- Method -->
+  <hbox align="center">
+    <html:label style="min-width: 88px">방법·정의</html:label>
+    <html:input
+      type="color"
+      id="zotero-prefpane-__addonRef__-autoHlMethodColor"
+      preference="autoHlMethodColor"
+      style="width: 48px; height: 28px; padding: 0; border: 1px solid #ccc"
+    />
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-autoHlMethodColorText"
+      preference="autoHlMethodColor"
+      placeholder="#2ea8e5"
+      style="width: 88px"
+    />
+    <menulist
+      id="zotero-prefpane-__addonRef__-autoHlMethodType"
+      preference="autoHlMethodType"
+      native="true"
+    >
+      <menupopup>
+        <menuitem value="highlight" label="하이라이트" />
+        <menuitem value="underline" label="밑줄" />
+      </menupopup>
+    </menulist>
+  </hbox>
+
+  <!-- Novelty -->
+  <hbox align="center">
+    <html:label style="min-width: 88px">기여·새로움</html:label>
+    <html:input
+      type="color"
+      id="zotero-prefpane-__addonRef__-autoHlNoveltyColor"
+      preference="autoHlNoveltyColor"
+      style="width: 48px; height: 28px; padding: 0; border: 1px solid #ccc"
+    />
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-autoHlNoveltyColorText"
+      preference="autoHlNoveltyColor"
+      placeholder="#5fb236"
+      style="width: 88px"
+    />
+    <menulist
+      id="zotero-prefpane-__addonRef__-autoHlNoveltyType"
+      preference="autoHlNoveltyType"
+      native="true"
+    >
+      <menupopup>
+        <menuitem value="highlight" label="하이라이트" />
+        <menuitem value="underline" label="밑줄" />
+      </menupopup>
+    </menulist>
+  </hbox>
+
+  <!-- Caveat -->
+  <hbox align="center">
+    <html:label style="min-width: 88px">한계·가정</html:label>
+    <html:input
+      type="color"
+      id="zotero-prefpane-__addonRef__-autoHlCaveatColor"
+      preference="autoHlCaveatColor"
+      style="width: 48px; height: 28px; padding: 0; border: 1px solid #ccc"
+    />
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-autoHlCaveatColorText"
+      preference="autoHlCaveatColor"
+      placeholder="#ff6666"
+      style="width: 88px"
+    />
+    <menulist
+      id="zotero-prefpane-__addonRef__-autoHlCaveatType"
+      preference="autoHlCaveatType"
+      native="true"
+    >
+      <menupopup>
+        <menuitem value="highlight" label="하이라이트" />
+        <menuitem value="underline" label="밑줄" />
+      </menupopup>
+    </menulist>
   </hbox>
 </groupbox>
 <vbox>

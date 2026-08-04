@@ -580,9 +580,8 @@ export async function runStickyTask(opts: {
       } catch {
         /* ignore */
       }
+      // Inline [§…] links only — no trailing evidence dump
       answer = withEvidenceAnswer(answer, rag.evidence).answer;
-    } else if (rag.ragFooter && answer) {
-      answer = `${answer}\n\n——\n${rag.ragFooter}`;
     }
     diag("sticky", "explain RAG", {
       usedRag: rag.usedRag,

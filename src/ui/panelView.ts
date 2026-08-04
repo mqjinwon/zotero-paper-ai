@@ -51,6 +51,48 @@ export const PANEL_CSS = `
 .paperai-pane .pai-card h4 {
   margin: 0; font-size: 12px; font-weight: 600; color: #333 !important;
 }
+.paperai-pane .pai-summary-body {
+  min-height: 72px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  user-select: text;
+  -moz-user-select: text;
+}
+.paperai-pane .pai-summary-body .pai-md ul {
+  margin: 0.2em 0;
+  padding-left: 1.25em;
+}
+.paperai-pane .pai-summary-body .pai-md li { margin: 0.25em 0; }
+.paperai-pane .pai-summary-body.is-empty {
+  color: #888; font-size: 12px; display: flex; align-items: center;
+}
+.paperai-pane .pai-autohl-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 200px; overflow: auto;
+}
+.paperai-pane .pai-autohl-row {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start;
+  padding: 6px 8px; background: #fafafa; border: 1px solid #eee;
+  border-radius: 8px; font-size: 12px;
+}
+.paperai-pane .pai-autohl-swatch {
+  width: 10px; height: 10px; border-radius: 2px; margin-top: 4px; flex: 0 0 auto;
+}
+.paperai-pane .pai-autohl-swatch.uline {
+  height: 0; border-bottom: 3px solid currentColor; border-radius: 0; width: 14px;
+}
+.paperai-pane .pai-autohl-meta { flex: 1 1 120px; min-width: 0; }
+.paperai-pane .pai-autohl-quote {
+  color: #333; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.paperai-pane .pai-autohl-row .pai-actions { margin-left: auto; }
 .paperai-pane .pai-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .paperai-pane button.pai-btn,
 .paperai-pane button.pai-send {
@@ -378,12 +420,66 @@ export function buildPanelDom(
     ]),
   );
 
+  // Paper summary (top feature)
+  stack.appendChild(
+    el(doc, "div", { class: "pai-card pai-summary" }, [
+      el(doc, "div", { class: "pai-head" }, [
+        el(doc, "h4", null, ["논문 요약"]),
+        el(doc, "div", { class: "pai-actions" }, [
+          btn(doc, "summarize", "요약 생성하기", "pai-btn primary"),
+        ]),
+      ]),
+      el(doc, "p", { class: "pai-muted" }, [
+        "논문 전체 근거로 3–5개 bullet 요약. 결과는 이 논문 노트에 저장되어 Zotero Sync로 따라갑니다.",
+      ]),
+      el(
+        doc,
+        "div",
+        {
+          class: "pai-summary-body is-empty",
+          "data-pai-summary": "1",
+        },
+        ["아직 요약이 없습니다. 「요약 생성하기」를 누르세요."],
+      ),
+    ]),
+  );
+
+  // Auto-highlight card
+  stack.appendChild(
+    el(doc, "div", { class: "pai-card pai-autohl" }, [
+      el(doc, "div", { class: "pai-head" }, [
+        el(doc, "h4", null, ["자동 하이라이트"]),
+        el(doc, "div", { class: "pai-actions" }, [
+          btn(doc, "autohl-run", "생성하기", "pai-btn primary"),
+          btn(doc, "autohl-clear", "전체 삭제", "pai-btn ghost"),
+          btn(doc, "autohl-refresh", "새로고침", "pai-btn ghost"),
+        ]),
+      ]),
+      el(doc, "p", { class: "pai-muted", "data-pai-autohl-legend": "1" }, [
+        "■ 주장·결과(노랑) · ─ 방법(파랑 밑줄) · ■ 기여(초록) · ─ 한계(분홍 밑줄). 태그 paper-ai-auto 로 수동 주석과 구분.",
+      ]),
+      el(
+        doc,
+        "div",
+        {
+          class: "pai-autohl-list",
+          "data-pai-autohl-list": "1",
+        },
+        [
+          el(doc, "div", { class: "pai-muted" }, [
+            "아직 자동 하이라이트가 없습니다. 「생성하기」를 누르세요.",
+          ]),
+        ],
+      ),
+    ]),
+  );
+
   // Index card (translate/explain/figure live on PDF reader UI)
   stack.appendChild(
     el(doc, "div", { class: "pai-card" }, [
       el(doc, "h4", null, ["논문 인덱스 (RAG)"]),
       el(doc, "p", { class: "pai-muted" }, [
-        "한 번 인덱싱하면 ~/.paperai/rag 에 저장됩니다. 패널을 다시 열어도 캐시를 재사용합니다. 안 눌러도 첫 질문 때 자동 인덱싱합니다.",
+        "한 번 인덱싱하면 로컬 RAG 캐시(data dir / paperai/rag)에 저장됩니다. 채팅·sticky는 논문 노트(Zotero Sync). 안 눌러도 첫 질문 때 자동 인덱싱합니다.",
       ]),
       el(
         doc,
@@ -407,12 +503,13 @@ export function buildPanelDom(
         el(doc, "h4", null, ["PDF 메모 (논문 순서)"]),
         el(doc, "div", { class: "pai-actions" }, [
           btn(doc, "sticky-refresh", "새로고침", "pai-btn ghost"),
+          btn(doc, "sticky-toggle-overlay", "PDF에서 숨기기", "pai-btn ghost"),
           btn(doc, "sticky-collapse-all", "모두 접기", "pai-btn ghost"),
           btn(doc, "sticky-expand-all", "모두 펼치기", "pai-btn ghost"),
         ]),
       ]),
       el(doc, "p", { class: "pai-muted" }, [
-        "페이지 순. 항목 클릭 → 원문 이동·메모 펼침. PDF 위 메모는 — 로 접기, 점선은 인용 위치와 연결됩니다.",
+        "페이지 순. 항목 클릭 → 원문 이동·메모 펼침. 「PDF에서 숨기기」는 오버레이만 끄고 목록은 유지합니다.",
       ]),
       el(
         doc,
@@ -523,6 +620,7 @@ export function countPanelControls(root: HTMLElement): {
   actions: number;
   hasIndex: boolean;
   hasChat: boolean;
+  hasSummary: boolean;
   hasFigure: boolean;
 } {
   return {
@@ -530,6 +628,7 @@ export function countPanelControls(root: HTMLElement): {
     actions: root.querySelectorAll("[data-act]").length,
     hasIndex: !!root.querySelector("[data-act='index-paper']"),
     hasChat: !!root.querySelector("[data-act='chat']"),
+    hasSummary: !!root.querySelector("[data-act='summarize']"),
     // Figure tools moved to PDF reader (area select / annotation menu)
     hasFigure: false,
   };

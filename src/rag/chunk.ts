@@ -1,6 +1,6 @@
 /**
- * Section-first hierarchical chunking (parent–child).
- * Policy: section-parent-child-v2 — full paper coverage + child overlap.
+ * Section → paragraph → sentence hierarchical chunking (parent–child).
+ * Policy: section-para-sent-v4 — locators like Introduction ¶2 s3.
  */
 
 import { CHUNK_POLICY, type Chunk, type ExtractedDoc } from "./types";
@@ -29,11 +29,11 @@ export interface ChunkOptions {
   overlapTokens?: number;
 }
 
-/** v2: slightly tighter children + ~15% overlap to reduce boundary misses. */
+/** Children stay small so locators stay precise. */
 const DEFAULTS: Required<ChunkOptions> = {
-  childTokens: 400,
+  childTokens: 280,
   parentMaxTokens: 2000,
-  overlapTokens: 64,
+  overlapTokens: 48,
 };
 
 interface SectionBlock {
@@ -41,6 +41,45 @@ interface SectionBlock {
   text: string;
   pageStart?: number;
   pageEnd?: number;
+}
+
+/** Split on blank lines; fall back to single block. */
+export function splitParagraphs(text: string): string[] {
+  const t = normalizeWs(text);
+  if (!t) return [];
+  const parts = t
+    .split(/\n\s*\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [t];
+}
+
+/**
+ * Lightweight sentence splitter (EN academic prose).
+ * Keeps abbreviations like e.g. / i.e. / Fig. from over-splitting somewhat.
+ */
+export function splitSentences(text: string): string[] {
+  const t = String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return [];
+  // Protect common abbreviations
+  const protected_ = t
+    .replace(/\be\.g\./gi, "e\uE000g\uE000")
+    .replace(/\bi\.e\./gi, "i\uE000e\uE000")
+    .replace(/\bFig\./g, "Fig\uE000")
+    .replace(/\bEq\./g, "Eq\uE000")
+    .replace(/\bSec\./g, "Sec\uE000")
+    .replace(/\bet al\./gi, "et al\uE000");
+  const raw = protected_.split(/(?<=[.!?])\s+(?=[A-Z0-9\[(“"])/);
+  return raw
+    .map((s) =>
+      s
+        .replace(/\uE000/g, ".")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean);
 }
 
 /** Split raw text into section-ish blocks via heading heuristics. */
@@ -77,7 +116,6 @@ export function splitIntoSections(
   }
   flush();
 
-  // Detect abstract at start if no Abstract section
   if (!blocks.some((b) => /abstract/i.test(b.name))) {
     const first = blocks[0];
     if (first && first.text.length > 200) {
@@ -141,41 +179,50 @@ function splitPagedSections(
       ];
 }
 
-function splitRecursive(
-  text: string,
+function packByTokens(
+  pieces: string[],
   maxTokens: number,
-  overlapTokens: number,
-): string[] {
-  const est = estimateTokens(text);
-  if (est <= maxTokens) return [text];
+): Array<{ text: string; from: number; to: number }> {
+  const out: Array<{ text: string; from: number; to: number }> = [];
+  let buf: string[] = [];
+  let from = 0;
+  let tokens = 0;
 
-  const targetChars = maxTokens * 4;
-  const overlapChars = overlapTokens * 4;
-  const seps = ["\n\n", "\n", ". ", " "];
-  const parts: string[] = [];
+  const flush = (to: number) => {
+    if (!buf.length) return;
+    out.push({ text: buf.join("\n\n").trim(), from, to });
+    buf = [];
+    tokens = 0;
+  };
 
-  let rest = text;
-  while (estimateTokens(rest) > maxTokens) {
-    const cut = Math.min(rest.length, targetChars);
-    const window = rest.slice(0, cut);
-    let best = -1;
-    for (const sep of seps) {
-      const idx = window.lastIndexOf(sep);
-      if (idx > targetChars * 0.4) {
-        best = idx + sep.length;
-        break;
-      }
+  for (let i = 0; i < pieces.length; i++) {
+    const t = estimateTokens(pieces[i]);
+    if (buf.length && tokens + t > maxTokens) {
+      flush(i - 1);
+      from = i;
     }
-    if (best < 0) best = cut;
-    parts.push(rest.slice(0, best).trim());
-    const nextStart = Math.max(0, best - overlapChars);
-    rest = rest.slice(nextStart).trim();
-    if (!rest) break;
+    if (!buf.length) from = i;
+    buf.push(pieces[i]);
+    tokens += t;
+    // oversized single piece still emitted alone
+    if (tokens >= maxTokens && buf.length === 1) {
+      flush(i);
+      from = i + 1;
+    }
   }
-  if (rest) parts.push(rest);
-  return parts.filter(Boolean);
+  if (buf.length) flush(pieces.length - 1);
+  return out;
 }
 
+function anchorFrom(text: string): string {
+  const sents = splitSentences(text);
+  const a = (sents[0] || text).replace(/\s+/g, " ").trim();
+  return a.slice(0, 160);
+}
+
+/**
+ * Build parent/child chunks with paragraph + sentence locators.
+ */
 export function chunkDocument(doc: ExtractedDoc, opts?: ChunkOptions): Chunk[] {
   const o = { ...DEFAULTS, ...opts };
   const sections = splitIntoSections(doc.fullText, doc.pages);
@@ -184,44 +231,99 @@ export function chunkDocument(doc: ExtractedDoc, opts?: ChunkOptions): Chunk[] {
   const id = () => `${doc.paperId}-${++seq}`;
 
   for (const sec of sections) {
-    const parentPieces = splitRecursive(
-      sec.text,
-      o.parentMaxTokens,
-      o.overlapTokens,
-    );
+    const isAbstract = /abstract/i.test(sec.name);
+    const paras = splitParagraphs(sec.text);
+    if (!paras.length) continue;
 
-    for (let pi = 0; pi < parentPieces.length; pi++) {
-      const parentText = parentPieces[pi];
+    // Parents: pack consecutive paragraphs
+    const parentPacks = packByTokens(paras, o.parentMaxTokens);
+    for (let pi = 0; pi < parentPacks.length; pi++) {
+      const pack = parentPacks[pi];
       const parentId = id();
-      const isAbstract = /abstract/i.test(sec.name);
       const sectionLabel =
-        sec.name + (parentPieces.length > 1 ? ` (${pi + 1})` : "");
+        sec.name + (parentPacks.length > 1 ? ` (${pi + 1})` : "");
+      const paraStart = pack.from + 1;
+      const paraEnd = pack.to + 1;
       chunks.push({
         id: parentId,
-        text: parentText,
+        text: pack.text,
         section: sectionLabel,
         pageStart: sec.pageStart,
         pageEnd: sec.pageEnd,
+        paraStart,
+        paraEnd,
+        anchorText: anchorFrom(pack.text),
         kind: isAbstract ? "abstract" : "parent",
-        tokenEstimate: estimateTokens(parentText),
+        tokenEstimate: estimateTokens(pack.text),
       });
 
-      const children = splitRecursive(
-        parentText,
-        o.childTokens,
-        o.overlapTokens,
-      );
-      for (const c of children) {
-        chunks.push({
-          id: id(),
-          text: c,
-          section: sec.name,
-          pageStart: sec.pageStart,
-          pageEnd: sec.pageEnd,
-          parentId,
-          kind: isAbstract ? "abstract" : "child",
-          tokenEstimate: estimateTokens(c),
-        });
+      // Children: per paragraph, pack sentences if long
+      for (let p = pack.from; p <= pack.to; p++) {
+        const para = paras[p];
+        const paraNum = p + 1;
+        const sents = splitSentences(para);
+        if (!sents.length) continue;
+
+        if (estimateTokens(para) <= o.childTokens) {
+          chunks.push({
+            id: id(),
+            text: para,
+            section: sec.name,
+            pageStart: sec.pageStart,
+            pageEnd: sec.pageEnd,
+            paraStart: paraNum,
+            paraEnd: paraNum,
+            sentStart: 1,
+            sentEnd: sents.length,
+            anchorText: anchorFrom(para),
+            parentId,
+            kind: isAbstract ? "abstract" : "child",
+            tokenEstimate: estimateTokens(para),
+          });
+          continue;
+        }
+
+        // Pack sentences into child-sized windows
+        let sBuf: string[] = [];
+        let sFrom = 0;
+        let sTok = 0;
+        const flushSent = (sTo: number) => {
+          if (!sBuf.length) return;
+          const text = sBuf.join(" ").trim();
+          chunks.push({
+            id: id(),
+            text,
+            section: sec.name,
+            pageStart: sec.pageStart,
+            pageEnd: sec.pageEnd,
+            paraStart: paraNum,
+            paraEnd: paraNum,
+            sentStart: sFrom + 1,
+            sentEnd: sTo + 1,
+            anchorText: anchorFrom(text),
+            parentId,
+            kind: isAbstract ? "abstract" : "child",
+            tokenEstimate: estimateTokens(text),
+          });
+          sBuf = [];
+          sTok = 0;
+        };
+
+        for (let si = 0; si < sents.length; si++) {
+          const st = estimateTokens(sents[si]);
+          if (sBuf.length && sTok + st > o.childTokens) {
+            flushSent(si - 1);
+            sFrom = si;
+          }
+          if (!sBuf.length) sFrom = si;
+          sBuf.push(sents[si]);
+          sTok += st;
+          if (sTok >= o.childTokens && sBuf.length === 1) {
+            flushSent(si);
+            sFrom = si + 1;
+          }
+        }
+        if (sBuf.length) flushSent(sents.length - 1);
       }
     }
   }
@@ -241,4 +343,40 @@ export function sectionNames(chunks: Chunk[]): string[] {
     }
   }
   return out;
+}
+
+/** Human locator for tooltips / diagnostics (EN). */
+export function formatLocator(c: {
+  section: string;
+  paraStart?: number;
+  paraEnd?: number;
+  sentStart?: number;
+  sentEnd?: number;
+  pageStart?: number;
+  pageEnd?: number;
+}): string {
+  const base = c.section.replace(/\s*\(\d+\)\s*$/, "");
+  const parts: string[] = [base];
+  if (c.paraStart != null) {
+    if (c.paraEnd != null && c.paraEnd !== c.paraStart) {
+      parts.push(`¶${c.paraStart}–${c.paraEnd}`);
+    } else {
+      parts.push(`¶${c.paraStart}`);
+    }
+  }
+  if (c.sentStart != null && (c.paraEnd == null || c.paraEnd === c.paraStart)) {
+    if (c.sentEnd != null && c.sentEnd !== c.sentStart) {
+      parts.push(`s${c.sentStart}–${c.sentEnd}`);
+    } else {
+      parts.push(`s${c.sentStart}`);
+    }
+  }
+  if (c.pageStart != null) {
+    if (c.pageEnd != null && c.pageEnd !== c.pageStart) {
+      parts.push(`p.${c.pageStart}–${c.pageEnd}`);
+    } else {
+      parts.push(`p.${c.pageStart}`);
+    }
+  }
+  return parts.join(" · ");
 }

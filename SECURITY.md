@@ -18,7 +18,10 @@
 
 - LLM calls go to configured base URL (default `https://api.x.ai/v1`) or Codex.
 - Paper text / selection / images leave the machine only when the user runs translate/explain/chat/figure.
-- RAG indexes and stickies stay under `~/.paperai/` on disk.
+- Chat/sticky live in library notes (synced with the item). Avoid pasting
+  secrets into chat. RAG indexes stay under the plugin data dir on disk
+  (default `{Zotero data directory}/paperai/rag`). OAuth stays in
+  `~/.grok` / `~/.codex`, not in notes.
 
 ## Reporting
 

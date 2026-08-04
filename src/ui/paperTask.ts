@@ -225,7 +225,7 @@ export async function runPaperTask(
     reasoningEffort: cfg.reasoningEffort,
   });
 
-  let ragFooter = rag.ragFooter;
+  let ragFooter = "";
   if (rag.evidence?.length && answer) {
     // Resolve §Body labels → page numbers (search + Body(n) heuristic)
     try {
@@ -236,13 +236,12 @@ export async function runPaperTask(
           : `근거 페이지 미확인 · ${via} (검색 폴백)`,
       );
     } catch {
-      /* still emit footer without pages */
+      /* still linkify without pages */
     }
+    // Inline [§…] links only — no trailing evidence dump
     const applied = withEvidenceAnswer(answer, rag.evidence);
     answer = applied.answer;
     ragFooter = applied.ragFooter;
-  } else if (rag.ragFooter && answer) {
-    answer = `${answer}\n\n——\n${rag.ragFooter}`;
   }
 
   return {
