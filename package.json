@@ -1,7 +1,7 @@
 {
   "name": "zotero-paper-ai",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AI colleague for Zotero: translate, explain, chat with CLI OAuth (Codex/Grok) or API key",
   "config": {
     "addonName": "Paper AI Colleague",
