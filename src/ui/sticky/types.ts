@@ -14,6 +14,16 @@ export interface StickyPdfLocation {
   };
 }
 
+/**
+ * Sticky card top-left in PDF user space (bottom-left origin, like Zotero rects).
+ * Primary position model — screen x/y are only a paint cache / legacy fallback.
+ */
+export interface StickyCardPdf {
+  pageIndex: number;
+  x: number;
+  y: number;
+}
+
 export interface StickyNote {
   id: string;
   itemKey: string;
@@ -21,7 +31,9 @@ export interface StickyNote {
   quote: string;
   answer: string;
   pageLabel?: string;
+  /** @deprecated Host-screen paint cache; prefer cardPdf for placement. */
   x: number;
+  /** @deprecated Host-screen paint cache; prefer cardPdf for placement. */
   y: number;
   w?: number;
   h?: number;
@@ -29,6 +41,8 @@ export interface StickyNote {
   createdAt: string;
   pinned: boolean;
   pdfLocation?: StickyPdfLocation;
+  /** Anchored card position on the PDF page (scroll/zoom stable). */
+  cardPdf?: StickyCardPdf;
   quoteAnchor?: { x: number; y: number };
   imageDataUrl?: string;
   annotationKey?: string;

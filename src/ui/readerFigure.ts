@@ -174,6 +174,17 @@ export async function runFigureStickyTask(opts: {
 
   // Do NOT store nested-iframe client quoteAnchor — it goes stale on scroll and
   // lives in the wrong coordinate space vs shell-mounted stickies. PDF rects only.
+  // cardPdf: absolute PDF coords so the sticky scrolls with the page.
+  const cardPdf =
+    pos.cardPdf ||
+    (typeof pageIndex === "number" && rects?.[0]
+      ? {
+          pageIndex,
+          x: Math.max(rects[0][0] ?? 0, rects[0][2] ?? 0) + 12,
+          y: Math.max(rects[0][1] ?? 0, rects[0][3] ?? 0),
+        }
+      : undefined);
+
   const sticky = await upsertSticky(
     {
       itemKey,
@@ -185,6 +196,7 @@ export async function runFigureStickyTask(opts: {
       y,
       pinned: true,
       pdfLocation,
+      cardPdf,
       quoteAnchor: undefined,
       imageDataUrl,
       annotationKey: annKey,

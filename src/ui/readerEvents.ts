@@ -509,6 +509,7 @@ export async function runStickyTask(opts: {
       y: pos.y,
       pinned: true,
       pdfLocation: pos.pdfLocation,
+      cardPdf: pos.cardPdf,
       quoteAnchor: pos.quoteAnchor,
     },
     reader,

@@ -71,4 +71,51 @@ describe("itemNoteStore encode/decode", () => {
     assert.equal(decoded!.kind, "summary");
     assert.deepEqual(decoded!.payload, payload);
   });
+
+  it("decodes Zotero-rewritten note (stripped data-paper-ai, raw pre JSON)", () => {
+    // Real shape seen for FR-Net chat note after Zotero 7 note processor
+    const payload = {
+      itemKey: "AJNRGVMA",
+      updatedAt: "2026-08-10T08:15:42.406Z",
+      history: [
+        { role: "user", content: "이 논문의 가장 큰 contribution을 정리해줘." },
+        { role: "assistant", content: "contribution 요약" },
+      ],
+    };
+    const html =
+      `<div class="zotero-note znv1"><div data-schema-version="9">` +
+      `<p><em>Paper AI chat history (synced with this item — safe to ignore)</em></p>\n` +
+      `<pre>${JSON.stringify(payload)}</pre>\n` +
+      `</div></div>`;
+    assert.equal(html.includes("data-paper-ai"), false);
+    const decoded = decodeItemNoteBody(html);
+    assert.ok(decoded, "must decode without data-paper-ai attr");
+    assert.equal(decoded!.kind, "chat");
+    assert.deepEqual(decoded!.payload, payload);
+  });
+
+  it("decodes rewritten sticky via label + stickies field", () => {
+    const payload = {
+      itemKey: "AJNRGVMA",
+      stickies: [{ id: "s1", answer: "a", pinned: true }],
+    };
+    const html =
+      `<div data-schema-version="9"><p><em>Paper AI sticky notes (synced with this item — safe to ignore)</em></p>` +
+      `<pre>${JSON.stringify(payload)}</pre></div>`;
+    const decoded = decodeItemNoteBody(html, "sticky");
+    assert.ok(decoded);
+    assert.equal(decoded!.kind, "sticky");
+    assert.equal(
+      (decoded!.payload as { stickies: unknown[] }).stickies.length,
+      1,
+    );
+  });
+
+  it("uses kindHint when markup markers are gone", () => {
+    const payload = { history: [{ role: "user", content: "hi" }] };
+    const html = `<pre>${JSON.stringify(payload)}</pre>`;
+    const decoded = decodeItemNoteBody(html, "chat");
+    assert.ok(decoded);
+    assert.equal(decoded!.kind, "chat");
+  });
 });

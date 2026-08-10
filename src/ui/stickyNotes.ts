@@ -13,8 +13,37 @@ import { resolveReadableFile } from "../utils/dataDir";
 import { diag } from "../utils/diagnostics";
 import { getKatexCss } from "./katexCss";
 import { setMarkdownHtmlWithCites } from "./markdown";
+import {
+  coerceCardPdf,
+  isValidCardPdf,
+  seedCardPdfFromNote,
+} from "./sticky/cardPdf";
+import {
+  cardStyleOrigin,
+  clampDisplayPosition,
+  coerceCoord,
+  dragExceededThreshold,
+  stickyDragDeltaPosition,
+} from "./sticky/geometry";
+import {
+  docHasPdfPages,
+  findPageEl,
+  resolvePageElement,
+  sortDocsPdfFirst,
+  viewerClientRect,
+} from "./sticky/pageLookup";
+import {
+  applyStickyCardVisible,
+  isCardOffPage,
+  shouldShowSticky,
+} from "./sticky/visibility";
 
-export type { StickyKind, StickyNote, StickyPdfLocation } from "./sticky/types";
+export type {
+  StickyKind,
+  StickyNote,
+  StickyPdfLocation,
+  StickyCardPdf,
+} from "./sticky/types";
 export {
   STICKY_MIN_W,
   STICKY_MIN_H,
@@ -28,6 +57,14 @@ export {
   kindColor,
   clampStickySize,
 } from "./sticky/types";
+export {
+  cardStyleOrigin,
+  clampDisplayPosition,
+  coerceCoord,
+  dragExceededThreshold,
+  stickyDragDeltaPosition,
+} from "./sticky/geometry";
+export { shouldShowSticky, applyStickyCardVisible } from "./sticky/visibility";
 import {
   STICKY_MIN_W,
   STICKY_MIN_H,
@@ -43,6 +80,7 @@ import {
   type StickyKind,
   type StickyNote,
   type StickyPdfLocation,
+  type StickyCardPdf,
 } from "./sticky/types";
 
 // In-memory cache keyed by itemKey
@@ -134,6 +172,19 @@ function sanitizeStickies(list: StickyNote[]): StickyNote[] {
       .filter((n) => n?.id && n.pinned !== false)
       .map((n) => {
         const copy = { ...n };
+        // Persist finite pixel coords (Mac/Linux JSON may stringify numbers oddly)
+        copy.x = coerceCoord(copy.x, 24);
+        copy.y = coerceCoord(copy.y, 80);
+        if (copy.w != null) copy.w = coerceCoord(copy.w, STICKY_DEFAULT_W);
+        if (copy.h != null) copy.h = coerceCoord(copy.h, STICKY_DEFAULT_H);
+        const cp = coerceCardPdf(copy.cardPdf);
+        if (cp) copy.cardPdf = cp;
+        else delete copy.cardPdf;
+        // Prefer quote-anchored PDF position when missing (scroll-stable)
+        if (!copy.cardPdf) {
+          const seeded = seedCardPdfFromNote(copy);
+          if (seeded) copy.cardPdf = seeded;
+        }
         if (
           copy.imageDataUrl &&
           copy.imageDataUrl.length > MAX_STICKY_IMAGE_CHARS
@@ -270,30 +321,12 @@ function readerDocCandidates(reader: any): Document[] {
   return out;
 }
 
-function docHasPdfPages(doc: Document): boolean {
-  try {
-    return !!(
-      doc.querySelector?.("[data-page-number]") ||
-      doc.querySelector?.(".page") ||
-      doc.querySelector?.("#viewer .canvasWrapper canvas") ||
-      doc.querySelector?.("#viewerContainer")
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Single primary reader document only.
- * Prefer the iframe that actually hosts PDF pages (connectors need it).
- */
 /**
  * Prefer the outer reader chrome document (not the nested PDF.js page view).
  * Stickies mounted inside PDF.js lose text selection/copy; the item-pane chat
  * works because it lives outside PDF.js — same idea here.
  * Connectors still resolve page anchors across nested docs.
  */
-
 function primaryReaderDoc(reader: any): Document | null {
   const shellFirst: unknown[] = [
     reader?._iframeWindow?.document,
@@ -663,21 +696,6 @@ function ensureConnectorSvg(host: HTMLElement, doc: Document): SVGSVGElement {
   return svg;
 }
 
-/** Find page element for 0-based pageIndex (Zotero uses data-page-number 1-based). */
-function findPageEl(doc: Document, pageIndex: number): HTMLElement | null {
-  const pageNum = pageIndex + 1;
-  return (
-    (doc.querySelector(
-      `[data-page-number="${pageNum}"]`,
-    ) as HTMLElement | null) ||
-    (doc.querySelector(
-      `.page[data-page-number="${pageNum}"]`,
-    ) as HTMLElement | null) ||
-    (doc.querySelectorAll(".page")[pageIndex] as HTMLElement | null) ||
-    null
-  );
-}
-
 /**
  * Map PDF user-space point → client coords in `doc` via PDF.js viewport when possible.
  */
@@ -755,6 +773,175 @@ function pdfPointToClient(
   };
 }
 
+type PageViewLike = {
+  viewport?: {
+    convertToViewportPoint: (x: number, y: number) => number[];
+    convertToPdfPoint?: (x: number, y: number) => number[];
+    viewBox?: number[];
+    width?: number;
+    height?: number;
+  };
+  div?: HTMLElement;
+  pdfPage?: { view?: number[] };
+};
+
+function getPageView(doc: Document, pageIndex: number): PageViewLike | null {
+  try {
+    const win = doc.defaultView as unknown as {
+      PDFViewerApplication?: {
+        pdfViewer?: { getPageView?: (i: number) => PageViewLike };
+      };
+    } | null;
+    return (
+      win?.PDFViewerApplication?.pdfViewer?.getPageView?.(pageIndex) || null
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Host-client point → PDF user-space on a given page (via PDF.js). */
+function clientToPdfPoint(
+  doc: Document,
+  pageIndex: number,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  try {
+    const pageView = getPageView(doc, pageIndex);
+    const viewport = pageView?.viewport;
+    const div = pageView?.div || findPageEl(doc, pageIndex);
+    if (!div) return null;
+    const pr = div.getBoundingClientRect();
+    if (pr.width < 2 || pr.height < 2) return null;
+    const vx = clientX - pr.left;
+    const vy = clientY - pr.top;
+    if (viewport?.convertToPdfPoint) {
+      const pt = viewport.convertToPdfPoint(vx, vy);
+      return { x: pt[0] ?? 0, y: pt[1] ?? 0 };
+    }
+    // Linear fallback: CSS top-left → PDF bottom-left
+    let pdfW = 612;
+    let pdfH = 792;
+    const vb = viewport?.viewBox;
+    if (vb && vb.length >= 4) {
+      pdfW = Math.max(1, (vb[2] ?? 612) - (vb[0] ?? 0));
+      pdfH = Math.max(1, (vb[3] ?? 792) - (vb[1] ?? 0));
+    }
+    return {
+      x: (vx / pr.width) * pdfW,
+      y: (1 - vy / pr.height) * pdfH,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve sticky card top-left in host doc client coords from cardPdf.
+ * Returns null if page not available (caller keeps previous paint).
+ */
+function stickyHostPosFromCardPdf(
+  hostDoc: Document,
+  note: StickyNote,
+  reader: any,
+): { x: number; y: number } | null {
+  const cp = note.cardPdf;
+  if (!isValidCardPdf(cp)) return null;
+  for (const d of pdfDocsForReader(reader, hostDoc)) {
+    try {
+      const pt = pdfPointToClient(d, cp.pageIndex, cp.x, cp.y);
+      if (!pt) continue;
+      return mapClientPointToDoc(d, hostDoc, pt.x, pt.y);
+    } catch {
+      /* next */
+    }
+  }
+  return null;
+}
+
+/** Host-client card top-left → cardPdf on note's page. */
+function stickyCardPdfFromHostPos(
+  hostDoc: Document,
+  note: StickyNote,
+  reader: any,
+  hostX: number,
+  hostY: number,
+): StickyCardPdf | null {
+  const pageIndex =
+    note.cardPdf?.pageIndex ??
+    note.pdfLocation?.position?.pageIndex ??
+    note.pdfLocation?.pageIndex;
+  if (typeof pageIndex !== "number" || !Number.isFinite(pageIndex)) return null;
+  for (const d of pdfDocsForReader(reader, hostDoc)) {
+    try {
+      // Host client → PDF iframe client, then PDF user space
+      const inDoc = mapClientPointToDoc(hostDoc, d, hostX, hostY);
+      const pt = clientToPdfPoint(d, pageIndex, inDoc.x, inDoc.y);
+      if (pt) return { pageIndex, x: pt.x, y: pt.y };
+    } catch {
+      /* next */
+    }
+  }
+  return null;
+}
+
+/** Ensure note.cardPdf exists (from quote or reverse-project screen x/y). */
+function ensureNoteCardPdf(
+  hostDoc: Document,
+  note: StickyNote,
+  reader: any,
+): void {
+  if (isValidCardPdf(note.cardPdf)) return;
+  const seeded = seedCardPdfFromNote(note);
+  if (seeded) {
+    note.cardPdf = seeded;
+    return;
+  }
+  const pageIndex =
+    note.pdfLocation?.position?.pageIndex ?? note.pdfLocation?.pageIndex;
+  if (typeof pageIndex !== "number" || !Number.isFinite(pageIndex)) return;
+  const fromScreen = stickyCardPdfFromHostPos(
+    hostDoc,
+    { ...note, cardPdf: { pageIndex, x: 0, y: 0 } },
+    reader,
+    note.x,
+    note.y,
+  );
+  if (fromScreen) note.cardPdf = fromScreen;
+}
+
+/**
+ * Place each sticky card at its PDF-anchored position (scroll/zoom).
+ * Skips cards currently being dragged.
+ */
+function layoutStickyCards(
+  hostDoc: Document,
+  host: HTMLElement,
+  notes: StickyNote[],
+  reader: any,
+  draggingIds: Set<string>,
+): void {
+  for (const note of notes) {
+    if (draggingIds.has(note.id)) continue;
+    const card = host.querySelector(
+      `[${CARD_ATTR}="${note.id}"]`,
+    ) as HTMLElement | null;
+    if (!card) continue;
+    ensureNoteCardPdf(hostDoc, note, reader);
+    const pos = stickyHostPosFromCardPdf(hostDoc, note, reader);
+    if (!pos) continue;
+    // Exact PDF→host projection — no edge-stick. Off-page hide is separate.
+    const left = Math.round(pos.x);
+    const top = Math.round(pos.y);
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+    // Paint cache only (cardPdf remains source of truth)
+    note.x = left;
+    note.y = top;
+  }
+}
+
 /** Page index for ordering (0-based). Unknown → large number. */
 export function stickyPageIndex(note: StickyNote): number {
   const p =
@@ -793,16 +980,7 @@ function resolveQuoteAnchor(
   const rects = note.pdfLocation?.position?.rects;
 
   // Prefer docs that host PDF pages first (nested PDF.js iframe)
-  const docs: Document[] = [];
-  try {
-    for (const d of readerDocCandidates(reader)) {
-      if (!docs.includes(d)) docs.push(d);
-    }
-  } catch {
-    /* ignore */
-  }
-  if (!docs.includes(doc)) docs.push(doc);
-  docs.sort((a, b) => Number(docHasPdfPages(b)) - Number(docHasPdfPages(a)));
+  const docs = pdfDocsForReader(reader, doc);
 
   if (pageIndex != null && Number.isFinite(pageIndex)) {
     for (const d of docs) {
@@ -939,15 +1117,7 @@ function drawRegionOutline(
   const rects = note.pdfLocation?.position?.rects;
   if (pageIndex == null || !rects?.length) return;
 
-  const docs: Document[] = [];
-  try {
-    for (const d of readerDocCandidates(reader)) {
-      if (!docs.includes(d)) docs.push(d);
-    }
-  } catch {
-    /* ignore */
-  }
-  docs.sort((a, b) => Number(docHasPdfPages(b)) - Number(docHasPdfPages(a)));
+  const docs = pdfDocsForReader(reader);
 
   for (const d of docs) {
     try {
@@ -1082,11 +1252,134 @@ function mapClientPointToDoc(
   return { x, y };
 }
 
+function pdfDocsForReader(reader: any, hostDoc?: Document | null): Document[] {
+  const docs: Document[] = [];
+  try {
+    for (const d of readerDocCandidates(reader)) {
+      if (!docs.includes(d)) docs.push(d);
+    }
+  } catch {
+    /* ignore */
+  }
+  if (hostDoc && !docs.includes(hostDoc)) docs.push(hostDoc);
+  return sortDocsPdfFirst(docs);
+}
+
+/** DOM adapter → pure shouldShowSticky. */
+function isStickySourceVisible(
+  hostDoc: Document,
+  note: StickyNote,
+  reader: any,
+  dragging: boolean,
+): boolean {
+  const pageIndexRaw =
+    note.pdfLocation?.position?.pageIndex ?? note.pdfLocation?.pageIndex;
+  const pageIndex =
+    typeof pageIndexRaw === "number" && Number.isFinite(pageIndexRaw)
+      ? pageIndexRaw
+      : null;
+
+  const docs = pdfDocsForReader(reader, hostDoc);
+  let pdfReady = false;
+  for (const d of docs) {
+    try {
+      if (d.querySelector?.("[data-page-number], .page")) {
+        pdfReady = true;
+        break;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let pageRect: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } | null = null;
+  let pageLayoutChurn = false;
+  let viewerRect: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } | null = null;
+
+  if (pageIndex != null) {
+    let found = false;
+    for (const d of docs) {
+      try {
+        const pageEl = resolvePageElement(d, pageIndex);
+        if (!pageEl) continue;
+        found = true;
+        const pr = pageEl.getBoundingClientRect();
+        if (pr.width < 2 || pr.height < 2) {
+          pageLayoutChurn = true;
+          break;
+        }
+        pageRect = {
+          left: pr.left,
+          top: pr.top,
+          right: pr.right,
+          bottom: pr.bottom,
+        };
+        viewerRect = viewerClientRect(d);
+        break;
+      } catch {
+        /* next */
+      }
+    }
+    if (!found) {
+      pageRect = null;
+    }
+  }
+
+  const anchor =
+    pageIndex == null ? resolveQuoteAnchor(hostDoc, note, reader) : null;
+
+  return shouldShowSticky({
+    dragging,
+    pdfReady,
+    pageIndex,
+    pageRect,
+    pageLayoutChurn,
+    viewerRect,
+    anchorInHost: anchor,
+    hostViewport: {
+      w: hostDoc.defaultView?.innerWidth ?? 0,
+      h: hostDoc.defaultView?.innerHeight ?? 0,
+    },
+  });
+}
+
+/** Visibility pass only — separate from connector geometry. */
+function syncCardVisibility(
+  doc: Document,
+  host: HTMLElement,
+  notes: StickyNote[],
+  reader: any,
+  draggingIds: Set<string>,
+): void {
+  for (const note of notes) {
+    const card = host.querySelector(
+      `[${CARD_ATTR}="${note.id}"]`,
+    ) as HTMLElement | null;
+    if (!card) continue;
+    const visible = isStickySourceVisible(
+      doc,
+      note,
+      reader,
+      draggingIds.has(note.id),
+    );
+    applyStickyCardVisible(card, visible);
+  }
+}
+
 function redrawConnectors(
   doc: Document,
   host: HTMLElement,
   notes: StickyNote[],
-
   reader: any,
 ): void {
   const svg = ensureConnectorSvg(host, doc);
@@ -1097,6 +1390,7 @@ function redrawConnectors(
   let drawn = 0;
   let skippedNoCard = 0;
   let skippedNoAnchor = 0;
+  let skippedOffPage = 0;
 
   // Regions are painted on PDF page divs (not shell SVG)
   const activeIds = new Set(notes.map((n) => n.id));
@@ -1110,6 +1404,13 @@ function redrawConnectors(
       skippedNoCard++;
       continue;
     }
+
+    // Visibility already applied by syncCardVisibility
+    if (isCardOffPage(card)) {
+      skippedOffPage++;
+      continue;
+    }
+
     const color = kindColor(note.kind);
     // Region outline on PDF page (sidebar-safe)
     drawRegionOutline(doc, svg, note, reader, color, NS);
@@ -1132,7 +1433,7 @@ function redrawConnectors(
       fromX = cx;
       fromY = anchor.y < cy ? cr.top : cr.bottom;
     }
-    // Keep endpoints near viewport but allow slight overflow
+    // Anchor is on-page; still clamp tiny overflow for SVG bounds
     const toX = Math.max(-40, Math.min(vw + 40, anchor.x));
     const toY = Math.max(-40, Math.min(vh + 40, anchor.y));
 
@@ -1190,6 +1491,7 @@ function redrawConnectors(
       drawn,
       skippedNoCard,
       skippedNoAnchor,
+      skippedOffPage,
       pages: doc.querySelectorAll("[data-page-number], .page").length,
       hasPdfApp: !!(
         doc.defaultView as unknown as { PDFViewerApplication?: unknown }
@@ -1202,11 +1504,23 @@ const SCROLL_HOOK = "__paperaiConnectorScroll";
 const SCROLL_CLEANUP = "__paperaiConnectorScrollCleanup";
 const RAF_HOOK = "__paperaiConnectorRaf";
 
+/** Re-run connector/visibility pass (e.g. after navigate brings a page into view). */
+export function refreshStickyConnectors(reader: any): void {
+  try {
+    const doc = primaryReaderDoc(reader);
+    if (!doc) return;
+    (doc as any)[SCROLL_HOOK]?.();
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Keep dashed connectors + region outlines synced with:
  * - sticky drag (caller redraw)
  * - PDF scroll / zoom / rotate (nested iframe + PDF.js eventBus)
  * - window resize
+ * - page visibility (hide stickies whose PDF page is off-screen)
  */
 
 function installConnectorScrollHook(
@@ -1412,10 +1726,10 @@ async function navigateToNote(reader: any, note: StickyNote): Promise<void> {
 function renderCard(
   doc: Document,
   note: StickyNote,
-
   reader: any,
   onClose: () => void,
   onMoved: () => void,
+  draggingIds: Set<string>,
 ): HTMLElement {
   const size = clampStickySize(
     note.w ?? STICKY_DEFAULT_W,
@@ -1426,13 +1740,28 @@ function renderCard(
 
   const card = doc.createElement("div");
   card.setAttribute(CARD_ATTR, note.id);
-  // Clamp into current iframe viewport (host may switch outer ↔ PDF view)
+  // Initial paint: prefer PDF-anchored pos; fall back to legacy screen x/y
+  note.x = coerceCoord(note.x, 24);
+  note.y = coerceCoord(note.y, 80);
+  ensureNoteCardPdf(doc, note, reader);
+  const fromPdf = stickyHostPosFromCardPdf(doc, note, reader);
   const vw = doc.defaultView?.innerWidth || 1200;
   const vh = doc.defaultView?.innerHeight || 800;
-  const left = Math.max(8, Math.min(note.x, Math.max(8, vw - size.w - 8)));
-  const top = Math.max(8, Math.min(note.y, Math.max(8, vh - 48)));
+  let left: number;
+  let top: number;
+  if (fromPdf) {
+    left = fromPdf.x;
+    top = fromPdf.y;
+    note.x = Math.round(left);
+    note.y = Math.round(top);
+  } else {
+    const c = clampDisplayPosition(note.x, note.y, vw, vh, size.w);
+    left = c.x;
+    top = c.y;
+  }
   Object.assign(card.style, {
-    position: "fixed",
+    // absolute inside fixed host — left/top updated every scroll from cardPdf
+    position: "absolute",
     left: `${left}px`,
     top: `${top}px`,
     width: `${size.w}px`,
@@ -1760,29 +2089,55 @@ function renderCard(
   });
   applyCollapsed();
 
-  // Drag ONLY from header (not body) so text selection works in content
+  // Header drag: CSS-origin delta (host-local). Model x/y only written after real move.
   let dragging = false;
+  let dragDidMove = false;
   let resizing = false;
-  let ox = 0;
-  let oy = 0;
+  let dragStartLeft = 0;
+  let dragStartTop = 0;
+  let dragStartClientX = 0;
+  let dragStartClientY = 0;
   let startW = size.w;
   let startH = size.h;
   let startX = 0;
   let startY = 0;
   let activePointer: number | null = null;
+  let dragMoveRaf = 0;
+  const win = doc.defaultView;
+
+  const unbindWinDrag = () => {
+    try {
+      win?.removeEventListener("pointermove", onPointerMove, true);
+      win?.removeEventListener("pointerup", onPointerUp, true);
+      win?.removeEventListener("pointercancel", onPointerUp, true);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const onPointerDown = (ev: Event) => {
     const e = ev as PointerEvent;
     if (e.button != null && e.button !== 0) return;
     const t = e.target as HTMLElement | null;
     if (t?.tagName === "BUTTON" || t?.closest?.("button")) return;
-    // only header itself (title span ok)
     dragging = true;
+    dragDidMove = false;
     activePointer = e.pointerId;
-    ox = e.clientX - note.x;
-    oy = e.clientY - note.y;
+    draggingIds.add(note.id);
+    const origin = cardStyleOrigin(card, left, top);
+    dragStartLeft = origin.x;
+    dragStartTop = origin.y;
+    dragStartClientX = e.clientX;
+    dragStartClientY = e.clientY;
     try {
       head.setPointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    try {
+      win?.addEventListener("pointermove", onPointerMove, true);
+      win?.addEventListener("pointerup", onPointerUp, true);
+      win?.addEventListener("pointercancel", onPointerUp, true);
     } catch {
       /* ignore */
     }
@@ -1793,15 +2148,40 @@ function renderCard(
     if (!dragging) return;
     const e = ev as PointerEvent;
     if (activePointer != null && e.pointerId !== activePointer) return;
-    note.x = Math.max(0, Math.round(e.clientX - ox));
-    note.y = Math.max(0, Math.round(e.clientY - oy));
+    const next = stickyDragDeltaPosition(
+      dragStartLeft,
+      dragStartTop,
+      dragStartClientX,
+      dragStartClientY,
+      e.clientX,
+      e.clientY,
+    );
+    if (
+      !dragDidMove &&
+      !dragExceededThreshold({ x: dragStartLeft, y: dragStartTop }, next)
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    dragDidMove = true;
+    // During drag: screen paint only; commit to cardPdf on pointerup
+    note.x = next.x;
+    note.y = next.y;
     card.style.left = `${note.x}px`;
     card.style.top = `${note.y}px`;
-    // Immediate redraw so dashed connector tracks sticky during drag
-    try {
-      onMoved();
-    } catch {
-      /* ignore */
+    if (!dragMoveRaf) {
+      const raf =
+        win?.requestAnimationFrame?.bind(win) ||
+        ((cb: () => void) => setTimeout(cb, 16));
+      dragMoveRaf = raf(() => {
+        dragMoveRaf = 0;
+        try {
+          onMoved();
+        } catch {
+          /* ignore */
+        }
+      }) as unknown as number;
     }
     e.preventDefault();
     e.stopPropagation();
@@ -1812,18 +2192,38 @@ function renderCard(
     if (activePointer != null && e.pointerId !== activePointer) return;
     dragging = false;
     activePointer = null;
+    draggingIds.delete(note.id);
+    unbindWinDrag();
     try {
       head.releasePointerCapture?.(e.pointerId);
     } catch {
       /* ignore */
     }
-    void saveStickies(note.itemKey);
-    onMoved();
+    if (dragDidMove) {
+      // Commit host position → PDF absolute coords (stays put on scroll)
+      const origin = cardStyleOrigin(card, note.x, note.y);
+      const pdf = stickyCardPdfFromHostPos(
+        doc,
+        note,
+        reader,
+        origin.x,
+        origin.y,
+      );
+      if (pdf) note.cardPdf = pdf;
+      note.x = origin.x;
+      note.y = origin.y;
+      void saveStickies(note.itemKey);
+      try {
+        onMoved();
+      } catch {
+        /* ignore */
+      }
+    }
+    dragDidMove = false;
     e.preventDefault();
     e.stopPropagation();
   };
 
-  // Bind drag only on head — never on document (that steals text selection)
   head.addEventListener("pointerdown", onPointerDown);
   head.addEventListener("pointermove", onPointerMove);
   head.addEventListener("pointerup", onPointerUp);
@@ -1896,7 +2296,8 @@ let mountKey = "";
 
 /**
  * Paint stickies once into the primary reader iframe only.
- * Always reloads from disk so re-opening the PDF restores notes.
+ * Uses in-memory cache by default so drag positions aren't clobbered by a
+ * race against async Zotero-note save. Pass forceReload:true after disk load.
  */
 export async function mountStickiesForReader(
   reader: any,
@@ -1913,9 +2314,9 @@ export async function mountStickiesForReader(
   });
   if (mountKey !== token) return;
 
-  const notes = await loadStickies(itemKey, {
-    forceReload: opts?.forceReload !== false,
-  });
+  // Default: memory if present. forceReload only when explicit or cold cache.
+  const force = opts?.forceReload === true || !byItem.has(itemKey);
+  const notes = await loadStickies(itemKey, { forceReload: force });
   const doc = primaryReaderDoc(reader);
   cleanupExtraHosts(reader, doc);
   if (!doc) {
@@ -1935,8 +2336,12 @@ export async function mountStickiesForReader(
 
     const seen = new Set<string>();
     const active: StickyNote[] = [];
+    const draggingIds = new Set<string>();
     const redraw = () => {
       if (isStickyOverlayHidden(itemKey)) return;
+      // PDF-anchored layout first (scroll/zoom), then visibility, then connectors
+      layoutStickyCards(doc, host, active, reader, draggingIds);
+      syncCardVisibility(doc, host, active, reader, draggingIds);
       redrawConnectors(doc, host, active, reader);
     };
 
@@ -1952,6 +2357,7 @@ export async function mountStickiesForReader(
           void dismissSticky(note.itemKey, note.id, reader);
         },
         redraw,
+        draggingIds,
       );
       host.appendChild(card);
     }
@@ -2024,6 +2430,14 @@ export async function focusSticky(
   if (reader) {
     await mountStickiesForReader(reader, itemKey);
     await navigateToNote(reader, n);
+    // Unhide after navigate brings the page into view
+    refreshStickyConnectors(reader);
+    try {
+      const w = primaryReaderDoc(reader)?.defaultView;
+      w?.requestAnimationFrame?.(() => refreshStickyConnectors(reader));
+    } catch {
+      /* ignore */
+    }
     try {
       const doc = primaryReaderDoc(reader);
       const card = doc?.querySelector(
@@ -2148,9 +2562,14 @@ export async function upsertSticky(
     existing.kind = note.kind ?? existing.kind;
     existing.pageLabel = note.pageLabel ?? existing.pageLabel;
     if (note.pdfLocation) existing.pdfLocation = note.pdfLocation;
+    if (note.cardPdf) existing.cardPdf = note.cardPdf;
     if (note.quoteAnchor) existing.quoteAnchor = note.quoteAnchor;
     if (note.imageDataUrl) existing.imageDataUrl = note.imageDataUrl;
     if (note.annotationKey) existing.annotationKey = note.annotationKey;
+    if (!existing.cardPdf) {
+      const seeded = seedCardPdfFromNote(existing);
+      if (seeded) existing.cardPdf = seeded;
+    }
   } else {
     existing = {
       id: note.id || uid(),
@@ -2167,6 +2586,8 @@ export async function upsertSticky(
       createdAt: note.createdAt || new Date().toISOString(),
       pinned: note.pinned !== false,
       pdfLocation: note.pdfLocation,
+      cardPdf:
+        note.cardPdf || seedCardPdfFromNote(note as StickyNote) || undefined,
       quoteAnchor: note.quoteAnchor,
       imageDataUrl: note.imageDataUrl,
       annotationKey: note.annotationKey,
@@ -2291,6 +2712,7 @@ export function positionFromAnnotationParams(
   pageLabel?: string;
   pdfLocation?: StickyPdfLocation;
   quoteAnchor?: { x: number; y: number };
+  cardPdf?: StickyCardPdf;
 } {
   const ann = params?.annotation || {};
   const pageLabel = String(ann.pageLabel || params?.pageLabel || "");
@@ -2305,6 +2727,22 @@ export function positionFromAnnotationParams(
   let x = 48;
   let y = 96;
   let quoteAnchor: { x: number; y: number } | undefined;
+  let cardPdf: StickyCardPdf | undefined;
+
+  // Prefer PDF-absolute placement next to the quote rect
+  if (
+    typeof pageIndex === "number" &&
+    Number.isFinite(pageIndex) &&
+    Array.isArray(rects?.[0])
+  ) {
+    const seeded = seedCardPdfFromNote({
+      pdfLocation: {
+        pageIndex,
+        position: { pageIndex, rects },
+      },
+    } as StickyNote);
+    if (seeded) cardPdf = seeded;
+  }
 
   try {
     const win = reader?._iframeWindow;
@@ -2321,7 +2759,7 @@ export function positionFromAnnotationParams(
           x: r.left + r.width / 2,
           y: r.top + Math.min(r.height / 2, 12),
         };
-        // Place sticky to the right of selection when possible
+        // Screen fallback when PDF coords unavailable
         x = Math.min(vw - 320, Math.max(16, r.right + 16));
         y = Math.max(8, r.top - 8);
       }
@@ -2348,6 +2786,7 @@ export function positionFromAnnotationParams(
     pageLabel: pageLabel || undefined,
     pdfLocation,
     quoteAnchor,
+    cardPdf,
   };
 }
 

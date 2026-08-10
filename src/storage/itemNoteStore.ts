@@ -55,40 +55,87 @@ export function encodeItemNoteBody(
   );
 }
 
-/** Extract payload JSON from note HTML. Returns null if not a plugin note. */
-export function decodeItemNoteBody(html: string): {
-  kind: ItemNoteKind;
-  payload: unknown;
-} | null {
-  if (!html || typeof html !== "string") return null;
-  const kindMatch = html.match(
-    new RegExp(`${KIND_ATTR}=["'](chat|sticky|summary)["']`, "i"),
-  );
-  if (!kindMatch) return null;
-  const kind = kindMatch[1].toLowerCase() as ItemNoteKind;
-
-  const preMatch = html.match(
-    /<pre[^>]*class=["'][^"']*paper-ai-json[^"']*["'][^>]*>([\s\S]*?)<\/pre>/i,
-  );
-  const raw = preMatch
-    ? preMatch[1]
-    : (() => {
-        const anyPre = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-        return anyPre ? anyPre[1] : null;
-      })();
-  if (!raw) return null;
+function parseJsonPayload(raw: string): unknown | null {
+  const text = raw.trim();
+  if (!text) return null;
   try {
-    const payload = JSON.parse(unescapeHtml(raw.trim()));
-    return { kind, payload };
+    return JSON.parse(unescapeHtml(text));
   } catch {
     try {
-      // Some Zotero versions may strip entities partially
-      const payload = JSON.parse(raw.trim());
-      return { kind, payload };
+      // Zotero note editor may leave raw JSON or partially-escaped entities
+      return JSON.parse(text);
     } catch {
       return null;
     }
   }
+}
+
+function extractPreJson(html: string): string | null {
+  const preferred = html.match(
+    /<pre[^>]*class=["'][^"']*paper-ai-json[^"']*["'][^>]*>([\s\S]*?)<\/pre>/i,
+  );
+  if (preferred?.[1]) return preferred[1];
+  // Zotero often strips class= — take last <pre> that looks like JSON
+  const all = [...html.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/gi)];
+  for (let i = all.length - 1; i >= 0; i--) {
+    const body = (all[i]?.[1] || "").trim();
+    if (body.startsWith("{") || body.startsWith("[") || body.startsWith("{&")) {
+      return all[i]![1]!;
+    }
+  }
+  return all.length ? all[all.length - 1]![1]! : null;
+}
+
+function kindFromLabel(html: string): ItemNoteKind | null {
+  // Labels survive Zotero rewrite better than data-* attributes
+  if (/Paper AI chat history/i.test(html)) return "chat";
+  if (/Paper AI sticky notes/i.test(html)) return "sticky";
+  if (/Paper AI paper summary/i.test(html)) return "summary";
+  return null;
+}
+
+function kindFromPayload(payload: unknown): ItemNoteKind | null {
+  if (Array.isArray(payload)) return "chat";
+  if (!payload || typeof payload !== "object") return null;
+  const o = payload as Record<string, unknown>;
+  if (Array.isArray(o.stickies)) return "sticky";
+  if (typeof o.markdown === "string") return "summary";
+  if (Array.isArray(o.history)) return "chat";
+  return null;
+}
+
+/**
+ * Extract payload JSON from note HTML.
+ * Tolerates Zotero note editor rewrite that strips data-paper-ai / class attrs
+ * (seen on Zotero 7 schema-version notes).
+ */
+export function decodeItemNoteBody(
+  html: string,
+  kindHint?: ItemNoteKind,
+): {
+  kind: ItemNoteKind;
+  payload: unknown;
+} | null {
+  if (!html || typeof html !== "string") return null;
+
+  const kindMatch = html.match(
+    new RegExp(`${KIND_ATTR}=["'](chat|sticky|summary)["']`, "i"),
+  );
+  const raw = extractPreJson(html);
+  if (!raw) return null;
+  const payload = parseJsonPayload(raw);
+  if (payload == null) return null;
+
+  // Prefer explicit attr → label text → payload shape → caller hint
+  const kind: ItemNoteKind | null =
+    (kindMatch ? (kindMatch[1].toLowerCase() as ItemNoteKind) : null) ||
+    kindFromLabel(html) ||
+    kindFromPayload(payload) ||
+    kindHint ||
+    null;
+  if (!kind) return null;
+
+  return { kind, payload };
 }
 
 function zotero(): any {
@@ -205,13 +252,28 @@ export async function loadItemNotePayload(
     const note = findItemNote(parent, kind);
     if (!note) return null;
     const html = String(note.getNote?.() || "");
-    const decoded = decodeItemNoteBody(html);
-    if (!decoded || decoded.kind !== kind) return null;
+    // kindHint: note may be found by tag while Zotero stripped data-paper-ai
+    const decoded = decodeItemNoteBody(html, kind);
+    if (!decoded || decoded.kind !== kind) {
+      diag("itemNote", "decode miss", {
+        itemKey,
+        kind,
+        noteKey: note.key,
+        hasAttr: html.includes(KIND_ATTR),
+        htmlHead: html.slice(0, 120),
+      });
+      return null;
+    }
     diag("itemNote", "loaded", {
       itemKey,
       kind,
       noteKey: note.key,
+      healed: !html.includes(`${KIND_ATTR}=`),
     });
+    // Re-write canonical markup when Zotero stripped our markers (async heal)
+    if (!html.includes(`${KIND_ATTR}=`)) {
+      void saveItemNotePayload(itemKey, kind, decoded.payload);
+    }
     return decoded.payload;
   } catch (e) {
     diag("itemNote", "load fail", String(e));
