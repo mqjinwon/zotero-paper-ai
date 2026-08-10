@@ -14,7 +14,7 @@ import { readRagPrefs } from "../rag/prefs";
 import { diag } from "../utils/diagnostics";
 import { getPref, setPref } from "../utils/prefs";
 import { beginAreaSelectCapture } from "./imageCapture";
-import { groundAnswerForUi } from "../rag/grounding";
+import { buildGroundingCorpus, groundAnswerForUi } from "../rag/grounding";
 import { attachRagContext } from "./paperTask";
 import {
   installFigureAnnotationButtons,
@@ -575,10 +575,14 @@ export async function runStickyTask(opts: {
       reasoningEffort: cfg.reasoningEffort,
     });
     // Post-hoc HQ grounding on final answer only (keep streaming text until done)
-    if (answer && rag.paperSentences?.length) {
+    const sentsForGround = buildGroundingCorpus(
+      rag.paperSentences,
+      rag.evidence,
+    );
+    if (answer && sentsForGround.length) {
       const g = await groundAnswerForUi({
         answer,
-        paperSentences: rag.paperSentences,
+        paperSentences: sentsForGround,
         evidence: rag.evidence,
         client,
         model: cfg.model,
