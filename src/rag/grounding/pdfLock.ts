@@ -94,6 +94,7 @@ export async function lockJudgmentToPdf(opts: {
       section: undefined,
       rects: hasRects ? hit.rects : undefined,
       locateOk: true,
+      source: "hq-locked",
     };
   }
   return null;

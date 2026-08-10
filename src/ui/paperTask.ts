@@ -8,36 +8,17 @@ import { resolveFeatureConfig } from "../llm/featureConfig";
 import { fastTranslate, getOrCreateClient } from "../llm/fastTranslate";
 import { isVisionMode, runTask } from "../llm/router";
 import type { ImagePayload, TaskMode } from "../llm/types";
-import { locateQuoteInOpenPdf } from "../rag/autoHighlight/locate";
-import { resolveEmbedConfig, shouldUseRag } from "../rag/config";
+import { shouldUseRag } from "../rag/config";
 import {
-  groundAnswerToPaper,
   sentencesFromIndex,
   type PaperSentence,
 } from "../rag/groundAnswer";
-import { groundAnswerHighQuality } from "../rag/grounding";
-import type { PaperSentenceRef } from "../rag/grounding/types";
+import { groundAnswerForUi } from "../rag/grounding";
 import { queryPaper } from "../rag/index";
 import { getOpenPaperRef, type OpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
 import type { ExtractInput } from "../rag/extract";
 import type { ExtractedDoc, RagPrefs, RetrievedEvidence } from "../rag/types";
-
-/** Map legacy PaperSentence[] + evidence chunk ids → grounding refs. */
-export function toSentenceRefs(
-  sents: PaperSentence[],
-  evidenceChunkIds: Set<string>,
-): PaperSentenceRef[] {
-  return sents.map((s, i) => ({
-    id: s.chunkId ? `${s.chunkId}:${i}` : `s${i}`,
-    text: s.text,
-    pageStart: s.pageStart,
-    pageEnd: s.pageEnd,
-    section: s.section,
-    chunkId: s.chunkId,
-    fromEvidence: !!(s.chunkId && evidenceChunkIds.has(s.chunkId)),
-  }));
-}
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -250,14 +231,8 @@ export async function runPaperTask(
   });
 
   let ragFooter = "";
-  // Post-hoc HQ grounding: claims → judge → PDF lock (legacy lexical fallback)
+  // Post-hoc HQ grounding via single UI entry (fail closed; no silent legacy)
   const paperSents = rag.paperSentences || [];
-  const evidenceIds = new Set(
-    (rag.evidence || [])
-      .map((e) => e.chunk?.id)
-      .filter(Boolean) as string[],
-  );
-
   let sentsForGround: PaperSentence[] = paperSents;
   if (!sentsForGround.length && rag.evidence?.length) {
     // Fallback corpus: only retrieved evidence text
@@ -285,58 +260,24 @@ export async function runPaperTask(
 
   if (answer && sentsForGround.length) {
     input.onStatus?.("근거 판정(claim·judge·PDF) 중…");
-    try {
-      const embedCfg = resolveEmbedConfig(ragPrefs);
-      const grounded = await groundAnswerHighQuality({
-        answer,
-        paperSentences: toSentenceRefs(sentsForGround, evidenceIds),
-        llm: {
-          complete: (o) =>
-            client.complete({
-              model: o.model || cfg.model,
-              messages: o.messages,
-            }),
-          model: cfg.model,
-        },
-        embedCfg: embedCfg?.apiKey ? embedCfg : null,
-        locate: async (quote) => {
-          try {
-            return await locateQuoteInOpenPdf(quote);
-          } catch {
-            return null;
-          }
-        },
-        allowLegacyFallback: true,
-      });
-      answer = grounded.answer;
-      // Tray is already combined into answer by the pipeline
-      ragFooter = grounded.answer.includes("paperai-evidence-tray")
-        ? ""
-        : "";
-      input.onStatus?.(
-        `근거 링크 ${grounded.matched}/${grounded.claims.length}` +
-          (grounded.diagnostics.locateFailures
-            ? ` · locate실패 ${grounded.diagnostics.locateFailures}`
-            : "") +
-          (grounded.diagnostics.usedDense ? " · dense" : ""),
-      );
-    } catch (e) {
-      // Keep answer body; last-resort lexical ground
-      try {
-        const grounded = groundAnswerToPaper(answer, sentsForGround);
-        answer = grounded.answer;
-        ragFooter = grounded.ragFooter;
-        input.onStatus?.(
-          grounded.matched
-            ? `근거 링크 ${grounded.matched}/${grounded.claims} (legacy)`
-            : "근거 링크 없음",
-        );
-      } catch {
-        input.onStatus?.(
-          `근거 판정 실패: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-    }
+    const g = await groundAnswerForUi({
+      answer,
+      paperSentences: sentsForGround,
+      evidence: rag.evidence,
+      client,
+      model: cfg.model,
+      ragPrefs,
+      onStatus: input.onStatus,
+    });
+    answer = g.answer;
+    ragFooter = g.ragFooter;
+    input.onStatus?.(
+      `근거 링크 ${g.matched}/${g.claimCount}` +
+        (g.diagnostics.locateFailures
+          ? ` · locate실패 ${g.diagnostics.locateFailures}`
+          : "") +
+        (g.diagnostics.usedDense ? " · dense" : ""),
+    );
   }
 
   return {

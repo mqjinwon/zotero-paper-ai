@@ -1,6 +1,6 @@
 /**
  * High-quality post-hoc grounding orchestration.
- * claims → normalize → candidates → judge → PDF lock → HTML apply
+ * claims → normalize → candidates → judge (pool) → PDF lock (seq) → HTML apply
  */
 
 import type { EmbedConfig } from "../embed";
@@ -40,6 +40,27 @@ const CLAIM_SYSTEM = [
   "Max 8 claims. Prefer the answer language for text.",
 ].join(" ");
 
+/** Bounded async map — preserves order; concurrency-limited workers. */
+async function mapPool<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (!items.length) return [];
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    for (;;) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i]!, i);
+    }
+  }
+  const n = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: n }, () => worker()));
+  return results;
+}
+
 function emptyResult(
   answer: string,
   extra?: Partial<GroundingResult>,
@@ -74,7 +95,7 @@ function legacyFallback(
       chunkId: s.chunkId,
     })),
   );
-  // Degraded: no real PDF lock; map for result shape only
+  // Lexical only — no PDF locate; mark source honestly (rects omitted).
   const links: LockedEvidence[] = legacy.links.map((g, i) => ({
     claimId: `legacy${i + 1}`,
     answerPhrase: g.answerPhrase,
@@ -83,6 +104,7 @@ function legacyFallback(
     pageEnd: g.pageEnd,
     section: g.section,
     locateOk: true as const,
+    source: "legacy-lexical" as const,
   }));
   return {
     answer: legacy.answer,
@@ -200,6 +222,8 @@ async function tryDenseEmbeddings(
   }
 }
 
+const JUDGE_CONCURRENCY = 3;
+
 export async function groundAnswerHighQuality(opts: {
   answer: string;
   paperSentences: PaperSentenceRef[];
@@ -209,13 +233,17 @@ export async function groundAnswerHighQuality(opts: {
   locate?: (quote: string) => Promise<LocateHit | null>;
   maxClaims?: number;
   judgeTopK?: number;
-  /** When llm null, fall back to legacy groundAnswerToPaper */
+  /**
+   * When llm null, fall back to legacy groundAnswerToPaper.
+   * Default **false** (fail closed — keep answer body, no cite links).
+   */
   allowLegacyFallback?: boolean;
 }): Promise<GroundingResult> {
   const answer = String(opts.answer || "");
   const corpus = opts.paperSentences || [];
   const maxClaims = opts.maxClaims ?? 8;
   const judgeTopK = opts.judgeTopK ?? 5;
+  const allowLegacy = opts.allowLegacyFallback === true;
 
   if (!answer.trim()) {
     return emptyResult(answer);
@@ -225,7 +253,7 @@ export async function groundAnswerHighQuality(opts: {
   }
 
   if (!opts.llm) {
-    if (opts.allowLegacyFallback) {
+    if (allowLegacy) {
       return legacyFallback(answer, corpus);
     }
     return emptyResult(answer);
@@ -246,30 +274,33 @@ export async function groundAnswerHighQuality(opts: {
     corpusEmbeddings = dense.corpusEmbeddings;
   }
 
-  const judgments: Judgment[] = [];
-  const locks: LockedEvidence[] = [];
-  const candidateCounts: number[] = [];
-  let locateFailures = 0;
-  const usedPaper = new Set<string>();
+  // Phase 1: retrieve + judge in parallel (concurrency 3)
+  type JudgeRow = {
+    claim: Claim;
+    judgment: Judgment;
+    candidateCount: number;
+  };
 
-  for (const claim of claims) {
+  const judgeRows = await mapPool(claims, JUDGE_CONCURRENCY, async (claim) => {
     const candidates = retrieveCandidates(claim, corpus, {
       topN: 15,
       embedClaim: claimEmbeds.get(claim.id) || null,
       corpusEmbeddings: usedDense ? corpusEmbeddings : null,
     });
-    candidateCounts.push(candidates.length);
     const top = candidates.slice(0, judgeTopK);
 
     if (!top.length) {
-      judgments.push({
-        claimId: claim.id,
-        label: "none",
-        sentenceId: null,
-        paperSentence: null,
-        confidence: 0,
-      });
-      continue;
+      return {
+        claim,
+        judgment: {
+          claimId: claim.id,
+          label: "none" as const,
+          sentenceId: null,
+          paperSentence: null,
+          confidence: 0,
+        },
+        candidateCount: 0,
+      } satisfies JudgeRow;
     }
 
     const allowed = new Map(top.map((c) => [c.sentence.id, c.sentence.text]));
@@ -290,8 +321,25 @@ export async function groundAnswerHighQuality(opts: {
         confidence: 0,
       };
     }
-    judgments.push(judgment);
+    return {
+      claim,
+      judgment,
+      candidateCount: candidates.length,
+    } satisfies JudgeRow;
+  });
 
+  // Phase 2: sequential PDF lock (avoid PDF.js races)
+  const judgments: Judgment[] = [];
+  const locks: LockedEvidence[] = [];
+  const candidateCounts: number[] = [];
+  let locateFailures = 0;
+  const usedPaper = new Set<string>();
+
+  for (const row of judgeRows) {
+    judgments.push(row.judgment);
+    candidateCounts.push(row.candidateCount);
+
+    const { claim, judgment } = row;
     if (judgment.label !== "support" || !judgment.paperSentence) {
       continue;
     }

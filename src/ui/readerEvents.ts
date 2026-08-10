@@ -14,11 +14,8 @@ import { readRagPrefs } from "../rag/prefs";
 import { diag } from "../utils/diagnostics";
 import { getPref, setPref } from "../utils/prefs";
 import { beginAreaSelectCapture } from "./imageCapture";
-import { locateQuoteInOpenPdf } from "../rag/autoHighlight/locate";
-import { resolveEmbedConfig } from "../rag/config";
-import { groundAnswerToPaper } from "../rag/groundAnswer";
-import { groundAnswerHighQuality } from "../rag/grounding";
-import { attachRagContext, toSentenceRefs } from "./paperTask";
+import { groundAnswerForUi } from "../rag/grounding";
+import { attachRagContext } from "./paperTask";
 import {
   installFigureAnnotationButtons,
   onRenderSidebarAnnotationHeader as sidebarHeader,
@@ -577,51 +574,25 @@ export async function runStickyTask(opts: {
       },
       reasoningEffort: cfg.reasoningEffort,
     });
-    // Post-hoc HQ grounding on final answer only (do not touch streaming deltas)
+    // Post-hoc HQ grounding on final answer only (keep streaming text until done)
     if (answer && rag.paperSentences?.length) {
-      if (opts.statusEl) opts.statusEl.textContent = "근거 판정(claim·judge·PDF) 중…";
-      void updateStickyAnswer(
-        itemKey,
-        sticky.id,
-        "근거 판정(claim·judge·PDF) 중…",
-        reader,
-      );
-      try {
-        const ragPrefs = readRagPrefs();
-        const embedCfg = resolveEmbedConfig(ragPrefs);
-        const evidenceIds = new Set(
-          (rag.evidence || [])
-            .map((e) => e.chunk?.id)
-            .filter(Boolean) as string[],
-        );
-        const grounded = await groundAnswerHighQuality({
-          answer,
-          paperSentences: toSentenceRefs(rag.paperSentences, evidenceIds),
-          llm: {
-            complete: (o) =>
-              client.complete({
-                model: o.model || cfg.model,
-                messages: o.messages,
-              }),
-            model: cfg.model,
-          },
-          embedCfg: embedCfg?.apiKey ? embedCfg : null,
-          locate: async (quote) => {
-            try {
-              return await locateQuoteInOpenPdf(quote);
-            } catch {
-              return null;
-            }
-          },
-          allowLegacyFallback: true,
-        });
-        answer = grounded.answer;
-      } catch {
-        try {
-          answer = groundAnswerToPaper(answer, rag.paperSentences).answer;
-        } catch {
-          /* keep ungrounded answer */
-        }
+      if (opts.statusEl) {
+        opts.statusEl.textContent = "근거 판정(claim·judge·PDF) 중…";
+      }
+      const g = await groundAnswerForUi({
+        answer,
+        paperSentences: rag.paperSentences,
+        evidence: rag.evidence,
+        client,
+        model: cfg.model,
+        ragPrefs: readRagPrefs(),
+        onStatus: (msg) => {
+          if (opts.statusEl) opts.statusEl.textContent = msg;
+        },
+      });
+      answer = g.answer;
+      if (opts.statusEl) {
+        opts.statusEl.textContent = `근거 링크 ${g.matched}/${g.claimCount}…`;
       }
     }
     diag("sticky", "explain RAG", {

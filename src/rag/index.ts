@@ -32,7 +32,11 @@ import {
   sentencesFromChunks,
   sentencesFromIndex,
 } from "./groundAnswer";
-import { groundAnswerHighQuality } from "./grounding";
+import {
+  groundAnswerForUi,
+  groundAnswerHighQuality,
+  toSentenceRefs,
+} from "./grounding";
 import { retrieve, type RetrieveOptions } from "./retrieve";
 import { findLatestIndexForPaper, loadIndex, saveIndex } from "./store";
 import type {
@@ -53,6 +57,8 @@ export {
   withEvidenceAnswer,
   groundAnswerToPaper,
   groundAnswerHighQuality,
+  groundAnswerForUi,
+  toSentenceRefs,
   sentencesFromIndex,
   sentencesFromChunks,
   enrichEvidenceWithPages,

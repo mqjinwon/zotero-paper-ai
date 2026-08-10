@@ -52,6 +52,8 @@ export interface LockedEvidence {
   section?: string;
   rects?: number[][];
   locateOk: true;
+  /** Provenance: real PDF lock vs legacy lexical (no PDF verify). */
+  source?: "hq-locked" | "legacy-lexical";
 }
 
 export interface GroundingDiagnostics {

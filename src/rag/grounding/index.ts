@@ -40,3 +40,15 @@ export {
   htmlLockedLink,
 } from "./apply";
 export { groundAnswerHighQuality } from "./pipeline";
+export {
+  toSentenceRefs,
+  isPaperSentenceRefArray,
+} from "./sentences";
+export {
+  fromLLMClient,
+  groundAnswerForUi,
+} from "./runForUi";
+export type {
+  GroundAnswerForUiOpts,
+  GroundAnswerForUiResult,
+} from "./runForUi";
