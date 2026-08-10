@@ -7,11 +7,14 @@ import { resolveFeatureConfig } from "../llm/featureConfig";
 import { runTask } from "../llm/router";
 import { getOrCreateClient } from "../llm/fastTranslate";
 import type { ImagePayload } from "../llm/types";
+import { locateQuoteInOpenPdf } from "../rag/autoHighlight/locate";
+import { resolveEmbedConfig } from "../rag/config";
 import {
   groundAnswerToPaper,
   splitSentences,
   type PaperSentence,
 } from "../rag/groundAnswer";
+import { groundAnswerHighQuality } from "../rag/grounding";
 import { ensureIndex } from "../rag/index";
 import { getOpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
@@ -26,7 +29,7 @@ import {
   locationFromAnnotationItem,
   type CaptureResult,
 } from "./imageCapture";
-import { attachRagContext } from "./paperTask";
+import { attachRagContext, toSentenceRefs } from "./paperTask";
 import {
   mountStickiesForReader,
   nextCascadeOffset,
@@ -277,6 +280,7 @@ export async function runFigureStickyTask(opts: {
       },
       reasoningEffort: cfg.reasoningEffort,
     });
+    // Post-hoc HQ grounding on final answer only (do not touch streaming deltas)
     if (answer) {
       const sents: PaperSentence[] = [...(rag.paperSentences || [])];
       // Also ground against figure caption / discussion text when present
@@ -286,7 +290,50 @@ export async function runFigureStickyTask(opts: {
         }
       }
       if (sents.length) {
-        answer = groundAnswerToPaper(answer, sents).answer;
+        setStatus("근거 판정(claim·judge·PDF) 중…");
+        void updateStickyAnswer(
+          itemKey,
+          sticky.id,
+          "근거 판정(claim·judge·PDF) 중…",
+          reader,
+        );
+        try {
+          const ragPrefs = readRagPrefs();
+          const embedCfg = resolveEmbedConfig(ragPrefs);
+          const evidenceIds = new Set(
+            (rag.evidence || [])
+              .map((e) => e.chunk?.id)
+              .filter(Boolean) as string[],
+          );
+          const grounded = await groundAnswerHighQuality({
+            answer,
+            paperSentences: toSentenceRefs(sents, evidenceIds),
+            llm: {
+              complete: (o) =>
+                client.complete({
+                  model: o.model || cfg.model,
+                  messages: o.messages,
+                }),
+              model: cfg.model,
+            },
+            embedCfg: embedCfg?.apiKey ? embedCfg : null,
+            locate: async (quote) => {
+              try {
+                return await locateQuoteInOpenPdf(quote);
+              } catch {
+                return null;
+              }
+            },
+            allowLegacyFallback: true,
+          });
+          answer = grounded.answer;
+        } catch {
+          try {
+            answer = groundAnswerToPaper(answer, sents).answer;
+          } catch {
+            /* keep ungrounded answer */
+          }
+        }
       }
     }
     answer = answer || "(empty)";

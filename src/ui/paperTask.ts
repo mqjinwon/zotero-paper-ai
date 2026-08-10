@@ -67,8 +67,9 @@ export interface PaperTaskInput {
   /** When false, never call queryPaper (tests for translate path). */
   allowRag?: boolean;
   /**
-   * Pre-built evidence (e.g. figure captions + discussions + RAG).
-   * When set, skips attachRagContext and injects this as model context.
+   * Pre-built evidence (e.g. figure captions + discussions).
+   * When set, preferred as model context but attachRagContext still runs
+   * so paperSentences/evidence are available for post-hoc grounding.
    */
   prefetchedContext?: string;
 }
@@ -206,28 +207,27 @@ export async function runPaperTask(
 
   const qText = question || selection || defaultQueryForMode(mode);
 
+  // Always attach RAG for index/sentences when allowed — prefetched only
+  // replaces/merges the model contextBlock, not the grounding corpus.
+  const rag = await attachRagContext({
+    mode,
+    store: input.store,
+    query: qText,
+    selection: selection || undefined,
+    ragPrefs,
+    paper: input.paper,
+    extract: input.extract,
+    onStatus: input.onStatus,
+    fetchImpl: input.fetchImpl,
+    allowRag: input.allowRag,
+  });
+
   const prefetched = (input.prefetchedContext || "").trim();
-  const rag = prefetched
-    ? {
-        contextBlock: prefetched,
-        ragFooter: "",
-        evidence: [] as RetrievedEvidence[],
-        paperSentences: [] as PaperSentence[],
-        indexLabel: "",
-        usedRag: true,
-      }
-    : await attachRagContext({
-        mode,
-        store: input.store,
-        query: qText,
-        selection: selection || undefined,
-        ragPrefs,
-        paper: input.paper,
-        extract: input.extract,
-        onStatus: input.onStatus,
-        fetchImpl: input.fetchImpl,
-        allowRag: input.allowRag,
-      });
+  // Model: figure/caption prefetched first; keep RAG block when present.
+  // Grounding: always uses rag.paperSentences / rag.evidence below.
+  const llmContext = prefetched
+    ? prefetched + (rag.contextBlock ? `\n\n${rag.contextBlock}` : "")
+    : rag.contextBlock;
 
   input.onStatus?.("응답 생성 중…");
   const client = getOrCreateClient(input.store, cfg);
@@ -240,7 +240,7 @@ export async function runPaperTask(
       mode === "chat" || isVisionMode(mode)
         ? input.paper?.title || undefined
         : undefined,
-    context: rag.contextBlock || undefined,
+    context: llmContext || undefined,
     question:
       mode === "chat" || isVisionMode(mode) ? question || undefined : undefined,
     image: input.image,
@@ -343,8 +343,8 @@ export async function runPaperTask(
     answer,
     ragFooter,
     indexLabel: rag.indexLabel,
-    usedRag: rag.usedRag,
-    contextBlock: rag.contextBlock,
+    usedRag: rag.usedRag || !!prefetched,
+    contextBlock: llmContext,
     provider: cfg.provider,
     model: cfg.model,
   };
