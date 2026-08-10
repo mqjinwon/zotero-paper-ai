@@ -6,3 +6,8 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 src/ui/katexCssRaw.ts
+
+.superpowers/
+.agents/
+.claude/
+.worktrees/

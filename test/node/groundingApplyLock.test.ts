@@ -5,7 +5,11 @@ import {
   lockJudgmentToPdf,
 } from "../../src/rag/grounding/pdfLock";
 import { applyLockedEvidence } from "../../src/rag/grounding/apply";
-import type { Claim, Judgment, LockedEvidence } from "../../src/rag/grounding/types";
+import type {
+  Claim,
+  Judgment,
+  LockedEvidence,
+} from "../../src/rag/grounding/types";
 
 describe("buildNeedleVariants", () => {
   it("includes full sentence and shorter prefixes", () => {

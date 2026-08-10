@@ -28,8 +28,9 @@ export function parseJudgment(
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   let label = asLabel(obj.label);
   const confRaw = Number(obj.confidence);
-  const confidence =
-    Number.isFinite(confRaw) ? Math.max(0, Math.min(1, confRaw)) : 0;
+  const confidence = Number.isFinite(confRaw)
+    ? Math.max(0, Math.min(1, confRaw))
+    : 0;
 
   let sentenceId: string | null = null;
   const sid = obj.sentence_id ?? obj.sentenceId;
@@ -66,10 +67,7 @@ export function buildJudgeSystem(): string {
   return JUDGE_SYSTEM;
 }
 
-export function buildJudgeUser(
-  claim: Claim,
-  candidates: Candidate[],
-): string {
+export function buildJudgeUser(claim: Claim, candidates: Candidate[]): string {
   const cands = candidates.map((c) => ({
     id: c.sentence.id,
     text: c.sentence.text,

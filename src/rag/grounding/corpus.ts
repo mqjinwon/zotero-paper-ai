@@ -28,12 +28,7 @@ export function buildGroundingCorpus(
 
   return evidence
     .map((e) => {
-      const text = (
-        e.chunk?.anchorText ||
-        e.chunk?.text ||
-        e.contextText ||
-        ""
-      )
+      const text = (e.chunk?.anchorText || e.chunk?.text || e.contextText || "")
         .replace(/\s+/g, " ")
         .trim();
       if (text.length < 28) return null;

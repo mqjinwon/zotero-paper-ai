@@ -32,9 +32,7 @@ export function htmlLockedLink(link: LockedEvidence): string {
     link.pageStart != null ? ` data-page="${link.pageStart}"` : "";
   const previewAttr = ` data-preview="${escapeHtml(link.paperSentence)}"`;
   const rectsEnc = encodeRectsAttr(link.rects);
-  const rectsAttr = rectsEnc
-    ? ` data-rects="${escapeHtml(rectsEnc)}"`
-    : "";
+  const rectsAttr = rectsEnc ? ` data-rects="${escapeHtml(rectsEnc)}"` : "";
   const title = escapeHtml(
     [
       link.section,

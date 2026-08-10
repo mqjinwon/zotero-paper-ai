@@ -9,14 +9,8 @@ import { fastTranslate, getOrCreateClient } from "../llm/fastTranslate";
 import { isVisionMode, runTask } from "../llm/router";
 import type { ImagePayload, TaskMode } from "../llm/types";
 import { shouldUseRag } from "../rag/config";
-import {
-  sentencesFromIndex,
-  type PaperSentence,
-} from "../rag/groundAnswer";
-import {
-  buildGroundingCorpus,
-  groundAnswerForUi,
-} from "../rag/grounding";
+import { sentencesFromIndex, type PaperSentence } from "../rag/groundAnswer";
+import { buildGroundingCorpus, groundAnswerForUi } from "../rag/grounding";
 import { queryPaper } from "../rag/index";
 import { getOpenPaperRef, type OpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
@@ -235,10 +229,7 @@ export async function runPaperTask(
 
   let ragFooter = "";
   // Post-hoc HQ grounding via single UI entry (fail closed; status via onStatus)
-  const sentsForGround = buildGroundingCorpus(
-    rag.paperSentences,
-    rag.evidence,
-  );
+  const sentsForGround = buildGroundingCorpus(rag.paperSentences, rag.evidence);
 
   if (answer && sentsForGround.length) {
     const g = await groundAnswerForUi({

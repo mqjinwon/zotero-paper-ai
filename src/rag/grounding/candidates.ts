@@ -32,7 +32,10 @@ export function retrieveCandidates(
   let usedDense = false;
   const denseScore = new Map<string, number>();
 
-  if (opts?.embedClaim?.length && opts.corpusEmbeddings?.length === corpus.length) {
+  if (
+    opts?.embedClaim?.length &&
+    opts.corpusEmbeddings?.length === corpus.length
+  ) {
     const ranked = corpus
       .map((s, i) => {
         const emb = opts.corpusEmbeddings![i];
@@ -52,9 +55,7 @@ export function retrieveCandidates(
 
   const fused = rrfFuse(lists);
   const byId = new Map(corpus.map((s) => [s.id, s]));
-  const bm25ById = new Map(
-    scores.map((s, i) => [corpus[i].id, s] as const),
-  );
+  const bm25ById = new Map(scores.map((s, i) => [corpus[i].id, s] as const));
 
   const out: Candidate[] = [];
   for (const { id, score } of fused) {

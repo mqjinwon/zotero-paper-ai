@@ -17,14 +17,14 @@ Today (`src/rag/groundAnswer.ts` + `paperTask.ts`):
 
 Failure modes (observed / structural):
 
-| Layer | Failure |
-| ----- | ------- |
-| Cross-lingual | Korean answers vs English paper → near-zero token overlap |
-| Semantics | Paraphrase / summary claims match wrong shared terms |
-| Claim unit | Long bullets mix multiple assertions → wrong top sentence |
-| Corpus | Full-paper lexical search ignores “what the model actually read” |
-| Locate | Index string ≠ PDF.js text → wrong/missing jump |
-| Calibration | Threshold tunes precision/recall but cannot fix language gap |
+| Layer         | Failure                                                          |
+| ------------- | ---------------------------------------------------------------- |
+| Cross-lingual | Korean answers vs English paper → near-zero token overlap        |
+| Semantics     | Paraphrase / summary claims match wrong shared terms             |
+| Claim unit    | Long bullets mix multiple assertions → wrong top sentence        |
+| Corpus        | Full-paper lexical search ignores “what the model actually read” |
+| Locate        | Index string ≠ PDF.js text → wrong/missing jump                  |
+| Calibration   | Threshold tunes precision/recall but cannot fix language gap     |
 
 **Success definition (performance-first):**
 
@@ -60,13 +60,13 @@ Failure modes (observed / structural):
 
 ## 3. Decisions (locked in brainstorming)
 
-| Topic | Decision |
-| ----- | -------- |
-| Final support gate | **LLM judge** (structured JSON), reuse existing chat LLM path (Codex/Grok OAuth or API key router) |
-| Dense retrieval | **Optional boost** — if embed key + vectors available, dense+BM25 RRF; else BM25 + term gates; **always** LLM judge when candidates exist |
-| Scope | **Full quality stack v1** in one spec/plan: claims, retrieve, judge, PDF lock, gold tests skeleton |
-| Wrong locate | **No navigable phrase link** (precision over coverage) |
-| Partial support | Link only if judge says `support` (not `partial`) for v1 phrase links; `partial` may appear in evidence tray as non-jumping text later if easy—**v1: tray only includes `support` + locked** |
+| Topic              | Decision                                                                                                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Final support gate | **LLM judge** (structured JSON), reuse existing chat LLM path (Codex/Grok OAuth or API key router)                                                                                           |
+| Dense retrieval    | **Optional boost** — if embed key + vectors available, dense+BM25 RRF; else BM25 + term gates; **always** LLM judge when candidates exist                                                    |
+| Scope              | **Full quality stack v1** in one spec/plan: claims, retrieve, judge, PDF lock, gold tests skeleton                                                                                           |
+| Wrong locate       | **No navigable phrase link** (precision over coverage)                                                                                                                                       |
+| Partial support    | Link only if judge says `support` (not `partial`) for v1 phrase links; `partial` may appear in evidence tray as non-jumping text later if easy—**v1: tray only includes `support` + locked** |
 
 ---
 
@@ -106,42 +106,47 @@ HTML answer (sticky/panel)
 
 ### 4.2 Module layout
 
-| Module | Responsibility |
-| ------ | -------------- |
-| `src/rag/grounding/types.ts` | Claim, Candidate, Judgment, LockedEvidence, GroundingResult |
-| `src/rag/grounding/claims.ts` | LLM claim extract + parse/validate + rule fallback |
-| `src/rag/grounding/normalize.ts` | KO→EN batch normalize; mustTerms/numbers extract |
-| `src/rag/grounding/candidates.ts` | BM25, optional dense, context prior, RRF |
-| `src/rag/grounding/judge.ts` | LLM support judge |
-| `src/rag/grounding/pdfLock.ts` | Locate + gate link emission |
-| `src/rag/grounding/apply.ts` | Phrase HTML links + tray (reuse/adapt current apply helpers) |
-| `src/rag/grounding/pipeline.ts` | `groundAnswerHighQuality(...)` orchestration |
-| `src/rag/groundAnswer.ts` | Thin re-export / legacy `groundAnswerToPaper` wrapper for tests during migration |
-| `src/ui/paperTask.ts` | Call new pipeline; pass evidence chunks + LLM client + optional embed cfg + reader |
+| Module                            | Responsibility                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/rag/grounding/types.ts`      | Claim, Candidate, Judgment, LockedEvidence, GroundingResult                        |
+| `src/rag/grounding/claims.ts`     | LLM claim extract + parse/validate + rule fallback                                 |
+| `src/rag/grounding/normalize.ts`  | KO→EN batch normalize; mustTerms/numbers extract                                   |
+| `src/rag/grounding/candidates.ts` | BM25, optional dense, context prior, RRF                                           |
+| `src/rag/grounding/judge.ts`      | LLM support judge                                                                  |
+| `src/rag/grounding/pdfLock.ts`    | Locate + gate link emission                                                        |
+| `src/rag/grounding/apply.ts`      | Phrase HTML links + tray (reuse/adapt current apply helpers)                       |
+| `src/rag/grounding/pipeline.ts`   | `groundAnswerHighQuality(...)` orchestration                                       |
+| `src/rag/groundAnswer.ts`         | Thin re-export / legacy `groundAnswerToPaper` wrapper for tests during migration   |
+| `src/ui/paperTask.ts`             | Call new pipeline; pass evidence chunks + LLM client + optional embed cfg + reader |
 
 ### 4.3 Types (canonical)
 
 ```ts
-export type ClaimType = "method" | "result" | "definition" | "comparison" | "other";
+export type ClaimType =
+  | "method"
+  | "result"
+  | "definition"
+  | "comparison"
+  | "other";
 
 export interface Claim {
-  id: string;              // c1, c2, ...
-  text: string;            // surface in answer language
-  textEn: string;          // English for retrieval/judge
+  id: string; // c1, c2, ...
+  text: string; // surface in answer language
+  textEn: string; // English for retrieval/judge
   type: ClaimType;
-  mustTerms: string[];     // technical terms that should appear in support
-  numbers: string[];       // numeric tokens to prefer/require soft-match
+  mustTerms: string[]; // technical terms that should appear in support
+  numbers: string[]; // numeric tokens to prefer/require soft-match
 }
 
 export interface PaperSentence {
-  id: string;              // stable: chunkId + hash or index
+  id: string; // stable: chunkId + hash or index
   text: string;
   pageStart?: number;
   pageEnd?: number;
   section?: string;
   chunkId?: string;
-  fromEvidence?: boolean;  // true if from RAG evidence for this answer
-  embedding?: number[];    // optional
+  fromEvidence?: boolean; // true if from RAG evidence for this answer
+  embedding?: number[]; // optional
 }
 
 export interface Candidate {
@@ -159,22 +164,22 @@ export interface Judgment {
   label: SupportLabel;
   sentenceId: string | null;
   paperSentence: string | null;
-  confidence: number;      // 0–1 model self-report, not sole gate
+  confidence: number; // 0–1 model self-report, not sole gate
 }
 
 export interface LockedEvidence {
   claimId: string;
-  answerPhrase: string;    // substring of claim.text for HTML wrap
+  answerPhrase: string; // substring of claim.text for HTML wrap
   paperSentence: string;
   pageStart?: number;
   pageEnd?: number;
   section?: string;
-  rects?: number[][];      // if locate provides
+  rects?: number[][]; // if locate provides
   locateOk: true;
 }
 
 export interface GroundingResult {
-  answer: string;          // body + optional tray HTML
+  answer: string; // body + optional tray HTML
   links: LockedEvidence[];
   claims: Claim[];
   judgments: Judgment[];
@@ -293,10 +298,10 @@ export async function groundAnswerHighQuality(opts: {
   llm: { completeJson: (system: string, user: string) => Promise<unknown> };
   embedCfg?: EmbedConfig | null;
   reader?: unknown;
-  maxClaims?: number;      // default 8
-  judgeTopK?: number;      // default 5
+  maxClaims?: number; // default 8
+  judgeTopK?: number; // default 5
   minJudgeConfidence?: number; // default 0.5 soft; label is primary
-}): Promise<GroundingResult>
+}): Promise<GroundingResult>;
 ```
 
 **Sync legacy path:** keep `groundAnswerToPaper` for unit tests and offline fallback when `llm` unavailable → old lexical scorer, but **paperTask always prefers high-quality path** when LLM client exists.
@@ -315,16 +320,16 @@ After `runTask` returns answer:
 
 ## 6. Error handling
 
-| Failure | Behavior |
-| ------- | -------- |
-| Claim LLM fail | Rule extractClaims fallback |
-| Normalize fail | textEn = text |
-| No embed key | Skip dense; BM25 + prior only |
-| Dense API error | Log diag; continue without dense |
+| Failure               | Behavior                              |
+| --------------------- | ------------------------------------- |
+| Claim LLM fail        | Rule extractClaims fallback           |
+| Normalize fail        | textEn = text                         |
+| No embed key          | Skip dense; BM25 + prior only         |
+| Dense API error       | Log diag; continue without dense      |
 | Judge fail / bad JSON | That claim → no link; others continue |
-| Judge timeout | Same |
-| Locate fail | No link for that claim |
-| Empty corpus | No grounding; return raw answer |
+| Judge timeout         | Same                                  |
+| Locate fail           | No link for that claim                |
+| Empty corpus          | No grounding; return raw answer       |
 
 Never block the user-visible answer on grounding failure.
 
@@ -379,13 +384,13 @@ Never block the user-visible answer on grounding failure.
 
 ## 10. Risks and mitigations
 
-| Risk | Mitigation |
-| ---- | ---------- |
+| Risk                                              | Mitigation                                                                  |
+| ------------------------------------------------- | --------------------------------------------------------------------------- |
 | Extra LLM latency (claims + normalize + N judges) | Batch normalize; cap claims 8; K=5; parallel judge calls with concurrency 3 |
-| Judge hallucination of sentence id | Constrain to provided ids; reject unknown |
-| Cost | Cap claims; optional pref later to disable HQ ground |
-| Embed quality multilingual | Optional only; judge is final gate |
-| PDF text mismatch | Progressive needle; fail closed |
+| Judge hallucination of sentence id                | Constrain to provided ids; reject unknown                                   |
+| Cost                                              | Cap claims; optional pref later to disable HQ ground                        |
+| Embed quality multilingual                        | Optional only; judge is final gate                                          |
+| PDF text mismatch                                 | Progressive needle; fail closed                                             |
 
 ---
 
@@ -393,13 +398,13 @@ Never block the user-visible answer on grounding failure.
 
 Still one deliverable, ordered for TDD:
 
-1. Types + pure candidate fusion + tests  
-2. Claim extract/normalize (mock LLM) + tests  
-3. Judge parse + pipeline with mocks  
-4. PDF lock adapter + fail-closed tests  
-5. paperTask wire-up + status  
-6. Gold fixture skeleton + legacy wrapper  
-7. citeNavigate rect preference if not already  
+1. Types + pure candidate fusion + tests
+2. Claim extract/normalize (mock LLM) + tests
+3. Judge parse + pipeline with mocks
+4. PDF lock adapter + fail-closed tests
+5. paperTask wire-up + status
+6. Gold fixture skeleton + legacy wrapper
+7. citeNavigate rect preference if not already
 
 ---
 
@@ -413,7 +418,7 @@ Still one deliverable, ordered for TDD:
 
 ## 13. Approval record
 
-- Final gate: LLM judge  
-- Dense: optional boost  
-- Scope: full quality stack v1  
-- Design approved in brainstorming session 2026-08-10  
+- Final gate: LLM judge
+- Dense: optional boost
+- Scope: full quality stack v1
+- Design approved in brainstorming session 2026-08-10

@@ -40,9 +40,7 @@ describe("parseJudgment", () => {
         confidence: 0.9,
       },
       claim,
-      new Map([
-        ["s2", "Explicit mass-contact prediction is key to recovery."],
-      ]),
+      new Map([["s2", "Explicit mass-contact prediction is key to recovery."]]),
     );
     assert.equal(j.label, "support");
     assert.equal(j.sentenceId, "s2");

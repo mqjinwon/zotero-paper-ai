@@ -18,10 +18,7 @@ function asStringArray(v: unknown): string[] {
 }
 
 /** Merge LLM normalize batch onto claims by id (or order fallback). */
-export function applyNormalizeResult(
-  claims: Claim[],
-  raw: unknown,
-): Claim[] {
+export function applyNormalizeResult(claims: Claim[], raw: unknown): Claim[] {
   if (!claims.length) return [];
   const obj =
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};

@@ -12,10 +12,7 @@ import { shouldUseRag } from "../../src/rag/config.ts";
 import { buildExtractedDoc } from "../../src/rag/extract.ts";
 import { paperRefOf } from "../../src/rag/paperRef.ts";
 import { toSentenceRefs } from "../../src/rag/grounding";
-import {
-  attachRagContext,
-  formatUserVisible,
-} from "../../src/ui/paperTask.ts";
+import { attachRagContext, formatUserVisible } from "../../src/ui/paperTask.ts";
 
 const FIXTURE = `
 Abstract

@@ -158,7 +158,9 @@ describe("groundAnswerForUi", () => {
     assert.doesNotMatch(g.answer, /paperai-cite-phrase/);
     assert.equal(statuses[0], "근거 판정(claim·judge·PDF) 중…");
     assert.ok(
-      statuses.some((s) => s.includes("근거 판정 실패") || s.includes("hq-force-throw")),
+      statuses.some(
+        (s) => s.includes("근거 판정 실패") || s.includes("hq-force-throw"),
+      ),
     );
   });
 
@@ -201,9 +203,7 @@ describe("groundAnswerForUi", () => {
     };
     await groundAnswerForUi({
       answer: "They use residual force learning on terrain.",
-      paperSentences: [
-        { text: PAPER_TEXT, pageStart: 1, chunkId: "c0" },
-      ],
+      paperSentences: [{ text: PAPER_TEXT, pageStart: 1, chunkId: "c0" }],
       client,
       model: "mock",
       locate: async () => ({

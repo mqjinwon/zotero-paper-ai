@@ -25,3 +25,5 @@ auth.json
 !.env.example.worktrees/
 
 .worktrees/
+
+.superpowers/

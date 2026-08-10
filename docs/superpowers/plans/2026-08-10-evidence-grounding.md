@@ -24,36 +24,38 @@
 
 ## File map
 
-| Path | Role |
-| ---- | ---- |
-| `src/rag/grounding/types.ts` | Claim, PaperSentenceRef, Candidate, Judgment, LockedEvidence, GroundingResult, GroundingLlm |
-| `src/rag/grounding/rrf.ts` | Pure RRF fusion |
-| `src/rag/grounding/candidates.ts` | BM25 + optional dense + evidence prior → top candidates |
-| `src/rag/grounding/claims.ts` | Parse/validate claim JSON + rule fallback from answer |
-| `src/rag/grounding/normalize.ts` | Batch KO→EN + mustTerms/numbers merge |
-| `src/rag/grounding/judge.ts` | Build judge prompt + parse Judgment |
-| `src/rag/grounding/pdfLock.ts` | Needle variants + locate adapter → LockedEvidence \| null |
-| `src/rag/grounding/apply.ts` | HTML links + tray from LockedEvidence |
-| `src/rag/grounding/llmJson.ts` | `completeJson(llm, system, user)` helper |
-| `src/rag/grounding/pipeline.ts` | `groundAnswerHighQuality` |
-| `src/rag/grounding/index.ts` | Public exports |
-| `src/rag/groundAnswer.ts` | Keep legacy exports; re-export new entry if useful |
-| `src/rag/index.ts` | Export high-quality entry |
-| `src/ui/paperTask.ts` | Wire pipeline after `runTask` |
-| `src/ui/citeNavigate.ts` | Prefer `data-rects` when present (if missing) |
-| `test/node/grounding*.test.ts` | Unit + pipeline mocks |
-| `test/fixtures/grounding/sample-claims.json` | Gold skeleton |
+| Path                                         | Role                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `src/rag/grounding/types.ts`                 | Claim, PaperSentenceRef, Candidate, Judgment, LockedEvidence, GroundingResult, GroundingLlm |
+| `src/rag/grounding/rrf.ts`                   | Pure RRF fusion                                                                             |
+| `src/rag/grounding/candidates.ts`            | BM25 + optional dense + evidence prior → top candidates                                     |
+| `src/rag/grounding/claims.ts`                | Parse/validate claim JSON + rule fallback from answer                                       |
+| `src/rag/grounding/normalize.ts`             | Batch KO→EN + mustTerms/numbers merge                                                       |
+| `src/rag/grounding/judge.ts`                 | Build judge prompt + parse Judgment                                                         |
+| `src/rag/grounding/pdfLock.ts`               | Needle variants + locate adapter → LockedEvidence \| null                                   |
+| `src/rag/grounding/apply.ts`                 | HTML links + tray from LockedEvidence                                                       |
+| `src/rag/grounding/llmJson.ts`               | `completeJson(llm, system, user)` helper                                                    |
+| `src/rag/grounding/pipeline.ts`              | `groundAnswerHighQuality`                                                                   |
+| `src/rag/grounding/index.ts`                 | Public exports                                                                              |
+| `src/rag/groundAnswer.ts`                    | Keep legacy exports; re-export new entry if useful                                          |
+| `src/rag/index.ts`                           | Export high-quality entry                                                                   |
+| `src/ui/paperTask.ts`                        | Wire pipeline after `runTask`                                                               |
+| `src/ui/citeNavigate.ts`                     | Prefer `data-rects` when present (if missing)                                               |
+| `test/node/grounding*.test.ts`               | Unit + pipeline mocks                                                                       |
+| `test/fixtures/grounding/sample-claims.json` | Gold skeleton                                                                               |
 
 ---
 
 ### Task 1: Types + RRF fusion (pure)
 
 **Files:**
+
 - Create: `src/rag/grounding/types.ts`
 - Create: `src/rag/grounding/rrf.ts`
 - Create: `test/node/groundingRrf.test.ts`
 
 **Interfaces:**
+
 - Produces: types below; `rrfFuse(rankLists: string[][], k?: number): Array<{ id: string; score: number }>`
 
 - [ ] **Step 1: Write failing test for RRF**
@@ -204,11 +206,13 @@ git commit -m "[feat] Grounding types and RRF fusion"
 ### Task 2: Candidate retrieval (BM25 + prior + optional dense)
 
 **Files:**
+
 - Create: `src/rag/grounding/candidates.ts`
 - Create: `test/node/groundingCandidates.test.ts`
 - Uses: `src/rag/bm25.ts`, `src/rag/embed.ts` (`cosine`, `embedTexts` types only for optional path)
 
 **Interfaces:**
+
 - Consumes: `PaperSentenceRef`, `Claim`, `rrfFuse`
 - Produces: `retrieveCandidates(claim, corpus, opts?) → Candidate[]`
 
@@ -307,7 +311,10 @@ export function retrieveCandidates(
   let usedDense = false;
   const denseScore = new Map<string, number>();
 
-  if (opts?.embedClaim?.length && opts.corpusEmbeddings?.length === corpus.length) {
+  if (
+    opts?.embedClaim?.length &&
+    opts.corpusEmbeddings?.length === corpus.length
+  ) {
     const ranked = corpus
       .map((s, i) => {
         const emb = opts.corpusEmbeddings![i];
@@ -327,9 +334,7 @@ export function retrieveCandidates(
 
   const fused = rrfFuse(lists);
   const byId = new Map(corpus.map((s) => [s.id, s]));
-  const bm25ById = new Map(
-    scores.map((s, i) => [corpus[i].id, s] as const),
-  );
+  const bm25ById = new Map(scores.map((s, i) => [corpus[i].id, s] as const));
 
   const out: Candidate[] = [];
   for (const { id, score } of fused) {
@@ -366,12 +371,14 @@ git commit -m "[feat] Grounding candidate retrieval (BM25+RRF+prior)"
 ### Task 3: Claim parse + rule fallback
 
 **Files:**
+
 - Create: `src/rag/grounding/claims.ts`
 - Create: `test/node/groundingClaims.test.ts`
 - Reuse: `extractClaimSpans` from `../groundAnswer` for fallback
 
 **Interfaces:**
-- Produces: `parseClaimsJson(raw: unknown, maxClaims?: number): Claim[]`  
+
+- Produces: `parseClaimsJson(raw: unknown, maxClaims?: number): Claim[]`
 - Produces: `claimsFromAnswerRules(answer: string, maxClaims?: number): Claim[]`
 
 - [ ] **Step 1: Failing tests**
@@ -452,14 +459,15 @@ function asType(v: unknown): ClaimType {
 
 function asStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
-  return v.map((x) => String(x || "").trim()).filter(Boolean).slice(0, 12);
+  return v
+    .map((x) => String(x || "").trim())
+    .filter(Boolean)
+    .slice(0, 12);
 }
 
-export function parseClaimsJson(
-  raw: unknown,
-  maxClaims = 8,
-): Claim[] {
-  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+export function parseClaimsJson(raw: unknown, maxClaims = 8): Claim[] {
+  const obj =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const arr = Array.isArray(obj.claims)
     ? obj.claims
     : Array.isArray(raw)
@@ -475,7 +483,9 @@ export function parseClaimsJson(
     out.push({
       id,
       text: text.slice(0, 400),
-      textEn: String(o.text_en || o.textEn || text).trim().slice(0, 400),
+      textEn: String(o.text_en || o.textEn || text)
+        .trim()
+        .slice(0, 400),
       type: asType(o.type),
       mustTerms: asStringArray(o.must_terms ?? o.mustTerms),
       numbers: asStringArray(o.numbers),
@@ -485,10 +495,7 @@ export function parseClaimsJson(
   return out;
 }
 
-export function claimsFromAnswerRules(
-  answer: string,
-  maxClaims = 8,
-): Claim[] {
+export function claimsFromAnswerRules(answer: string, maxClaims = 8): Claim[] {
   const spans = extractClaimSpans(answer, { minChars: 12 }).slice(0, maxClaims);
   return spans.map((text, i) => ({
     id: `c${i + 1}`,
@@ -513,12 +520,14 @@ git commit -m "[feat] Grounding claim parse and rule fallback"
 ### Task 4: LLM JSON helper + normalize + judge parsers
 
 **Files:**
+
 - Create: `src/rag/grounding/llmJson.ts`
 - Create: `src/rag/grounding/normalize.ts`
 - Create: `src/rag/grounding/judge.ts`
 - Create: `test/node/groundingJudgeNormalize.test.ts`
 
 **Interfaces:**
+
 - `completeJson(llm, system, user): Promise<unknown>`
 - `applyNormalizeResult(claims, raw): Claim[]`
 - `parseJudgment(raw, claim, allowedIds): Judgment`
@@ -568,9 +577,7 @@ describe("parseJudgment", () => {
         confidence: 0.9,
       },
       claim,
-      new Map([
-        ["s2", "Explicit mass-contact prediction is key to recovery."],
-      ]),
+      new Map([["s2", "Explicit mass-contact prediction is key to recovery."]]),
     );
     assert.equal(j.label, "support");
     assert.equal(j.sentenceId, "s2");
@@ -591,15 +598,15 @@ describe("parseJudgment", () => {
 
 - [ ] **Step 2: Implement parsers + completeJson**
 
-```ts
+````ts
 // llmJson.ts — strip ```json fences, JSON.parse, throw on failure
 // normalize.ts — applyNormalizeResult merges by id; buildNormalizeSystem/User strings in English
 // judge.ts — parseJudgment; buildJudgeSystem/User; SUPPORT only later in pipeline
-```
+````
 
 `completeJson`:
 
-```ts
+````ts
 export async function completeJson(
   llm: GroundingLlm,
   system: string,
@@ -617,7 +624,7 @@ export async function completeJson(
   const body = (fenced?.[1] || text).trim();
   return JSON.parse(body);
 }
-```
+````
 
 Judge system prompt (store as const string in `judge.ts`):
 
@@ -644,12 +651,14 @@ git commit -m "[feat] Grounding LLM JSON, normalize, judge parsers"
 ### Task 5: PDF lock (fail-closed) + apply HTML
 
 **Files:**
+
 - Create: `src/rag/grounding/pdfLock.ts`
 - Create: `src/rag/grounding/apply.ts`
 - Create: `test/node/groundingApplyLock.test.ts`
 - Uses: `pickLinkPhrase`, `applyGroundedLinks` patterns from `groundAnswer.ts` (copy/adapt into apply.ts to avoid circular deps); `locateQuoteInOpenPdf` from `autoHighlight/locate.ts`
 
 **Interfaces:**
+
 - `buildNeedleVariants(sentence: string): string[]`
 - `lockJudgmentToPdf(opts): Promise<LockedEvidence | null>`
 - `applyLockedEvidence(answer: string, locks: LockedEvidence[]): { answer: string; tray: string }`
@@ -792,11 +801,13 @@ git commit -m "[feat] Grounding PDF lock and HTML apply"
 ### Task 6: Pipeline orchestration (mock LLM + mock locate)
 
 **Files:**
+
 - Create: `src/rag/grounding/pipeline.ts`
 - Create: `src/rag/grounding/index.ts`
 - Create: `test/node/groundingPipeline.test.ts`
 
 **Interfaces:**
+
 - Produces: `groundAnswerHighQuality(opts) → Promise<GroundingResult>`
 
 ```ts
@@ -916,11 +927,13 @@ git commit -m "[feat] Grounding high-quality pipeline with mocks"
 ### Task 7: paperTask wiring + status + reader locate
 
 **Files:**
+
 - Modify: `src/ui/paperTask.ts` (post-answer grounding block ~233–272)
 - Modify: `src/rag/index.ts` exports
 - Possibly: helper to build `PaperSentenceRef[]` with ids from `sentencesFromIndex` + evidence flags
 
 **Interfaces:**
+
 - Build sentences:
 
 ```ts
@@ -1005,6 +1018,7 @@ git commit -m "[feat] Wire high-quality grounding into paperTask"
 ### Task 8: citeNavigate rect preference + gold fixture skeleton
 
 **Files:**
+
 - Modify: `src/ui/citeNavigate.ts` / markdown click handler path — ensure `data-rects` parsed and `navigateReaderToPosition(pageIndex0, rects)` called before quote locate when present
 - Create: `test/fixtures/grounding/sample-gold.json`
 - Create: `test/node/groundingGoldSkeleton.test.ts` (loads fixture, runs mock pipeline expectations)
@@ -1051,6 +1065,7 @@ git commit -m "[feat] Grounding gold skeleton and cite rect navigation"
 ### Task 9: Cleanup + docs
 
 **Files:**
+
 - Modify: `src/rag/groundAnswer.ts` header comment pointing to `grounding/`
 - Modify: `AGENTS.md` RAG bullet on grounding (one short paragraph)
 - Modify: `docs/superpowers/specs/2026-08-10-evidence-grounding-design.md` status → Implemented (when done)
@@ -1067,20 +1082,20 @@ git commit -m "[docs] Grounding pipeline notes in AGENTS"
 
 ## Self-review (plan vs spec)
 
-| Spec requirement | Task |
-| ---------------- | ---- |
-| Atomic claims LLM + rule fallback | T3, T6 |
-| KO→EN normalize | T4, T6 |
-| BM25 + optional dense RRF + evidence prior | T1–T2, T6 |
-| LLM judge support-only | T4, T6 |
-| PDF lock fail-closed | T5–T6 |
-| apply links + tray | T5 |
-| paperTask wire | T7 |
-| No cite-id protocol | preserved prompts; HQ path |
-| Modules under grounding/ | all tasks |
-| Gold skeleton | T8 |
-| Diagnostics | T6–T7 |
-| Legacy fallback | T6 |
+| Spec requirement                           | Task                       |
+| ------------------------------------------ | -------------------------- |
+| Atomic claims LLM + rule fallback          | T3, T6                     |
+| KO→EN normalize                            | T4, T6                     |
+| BM25 + optional dense RRF + evidence prior | T1–T2, T6                  |
+| LLM judge support-only                     | T4, T6                     |
+| PDF lock fail-closed                       | T5–T6                      |
+| apply links + tray                         | T5                         |
+| paperTask wire                             | T7                         |
+| No cite-id protocol                        | preserved prompts; HQ path |
+| Modules under grounding/                   | all tasks                  |
+| Gold skeleton                              | T8                         |
+| Diagnostics                                | T6–T7                      |
+| Legacy fallback                            | T6                         |
 
 **Placeholder scan:** none intentional.  
 **Type names:** Claim, PaperSentenceRef, Candidate, Judgment, LockedEvidence, GroundingResult, GroundingLlm — consistent across tasks.

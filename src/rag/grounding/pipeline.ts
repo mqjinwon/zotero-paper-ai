@@ -9,11 +9,7 @@ import { groundAnswerToPaper } from "../groundAnswer";
 import { applyLockedEvidence } from "./apply";
 import { retrieveCandidates } from "./candidates";
 import { claimsFromAnswerRules, parseClaimsJson } from "./claims";
-import {
-  buildJudgeSystem,
-  buildJudgeUser,
-  parseJudgment,
-} from "./judge";
+import { buildJudgeSystem, buildJudgeUser, parseJudgment } from "./judge";
 import { completeJson } from "./llmJson";
 import {
   applyNormalizeResult,

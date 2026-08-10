@@ -7,10 +7,7 @@ import { groundAnswerHighQuality } from "../../src/rag/grounding/pipeline";
 import type { PaperSentenceRef } from "../../src/rag/grounding/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const fixturePath = join(
-  __dirname,
-  "../fixtures/grounding/sample-gold.json",
-);
+const fixturePath = join(__dirname, "../fixtures/grounding/sample-gold.json");
 
 interface GoldCase {
   id: string;
@@ -25,9 +22,7 @@ interface GoldFixture {
   cases: GoldCase[];
 }
 
-const fixture = JSON.parse(
-  readFileSync(fixturePath, "utf8"),
-) as GoldFixture;
+const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as GoldFixture;
 
 describe("grounding gold skeleton", () => {
   for (const c of fixture.cases) {
@@ -87,9 +82,8 @@ describe("grounding gold skeleton", () => {
 
       assert.equal(r.matched, 1, `matched for ${c.id}`);
       assert.ok(
-        r.links[0]?.paperSentence.includes(
-          gold!.text.slice(0, 24),
-        ) || r.answer.includes("data-preview="),
+        r.links[0]?.paperSentence.includes(gold!.text.slice(0, 24)) ||
+          r.answer.includes("data-preview="),
       );
       assert.match(r.answer, /paperai-cite-phrase/);
       assert.match(

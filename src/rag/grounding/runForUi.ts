@@ -12,10 +12,7 @@ import type { PaperSentence } from "../groundAnswer";
 import type { RagPrefs } from "../types";
 import { groundAnswerHighQuality } from "./pipeline";
 import type { LocateHit } from "./pdfLock";
-import {
-  isPaperSentenceRefArray,
-  toSentenceRefs,
-} from "./sentences";
+import { isPaperSentenceRefArray, toSentenceRefs } from "./sentences";
 import {
   formatGroundingErrorStatus,
   formatGroundingProgressStatus,
@@ -134,14 +131,9 @@ export async function groundAnswerForUi(
   onStatus?.(formatGroundingProgressStatus());
 
   const evidenceIds = new Set(
-    (opts.evidence || [])
-      .map((e) => e.chunk?.id)
-      .filter(Boolean) as string[],
+    (opts.evidence || []).map((e) => e.chunk?.id).filter(Boolean) as string[],
   );
-  const paperSentences = resolveSentenceRefs(
-    opts.paperSentences,
-    evidenceIds,
-  );
+  const paperSentences = resolveSentenceRefs(opts.paperSentences, evidenceIds);
   const llm = fromLLMClient(opts.client, opts.model);
   const embedCfg = opts.ragPrefs ? resolveEmbedConfig(opts.ragPrefs) : null;
 

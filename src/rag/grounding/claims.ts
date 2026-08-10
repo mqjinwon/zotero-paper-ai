@@ -52,10 +52,7 @@ export function parseClaimsJson(raw: unknown, maxClaims = 8): Claim[] {
   return out;
 }
 
-export function claimsFromAnswerRules(
-  answer: string,
-  maxClaims = 8,
-): Claim[] {
+export function claimsFromAnswerRules(answer: string, maxClaims = 8): Claim[] {
   const spans = extractClaimSpans(answer, { minChars: 12 }).slice(0, maxClaims);
   return spans.map((text, i) => ({
     id: `c${i + 1}`,

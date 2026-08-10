@@ -32,20 +32,23 @@ describe("buildGroundingCorpus", () => {
   it("maps evidence when paperSentences empty", () => {
     const long =
       "This evidence chunk is definitely long enough to become a grounding sentence.";
-    const out = buildGroundingCorpus([], [
-      {
-        chunk: {
-          id: "e1",
-          anchorText: long,
-          pageStart: 3,
-          pageEnd: 3,
-          section: "Method",
+    const out = buildGroundingCorpus(
+      [],
+      [
+        {
+          chunk: {
+            id: "e1",
+            anchorText: long,
+            pageStart: 3,
+            pageEnd: 3,
+            section: "Method",
+          },
         },
-      },
-      {
-        chunk: { text: "too short" },
-      },
-    ]);
+        {
+          chunk: { text: "too short" },
+        },
+      ],
+    );
     assert.equal(out.length, 1);
     assert.equal(out[0].text, long);
     assert.equal(out[0].chunkId, "e1");
@@ -55,9 +58,7 @@ describe("buildGroundingCorpus", () => {
 
   it("clips evidence text at 420 chars", () => {
     const long = "a".repeat(500);
-    const out = buildGroundingCorpus(null, [
-      { contextText: long },
-    ]);
+    const out = buildGroundingCorpus(null, [{ contextText: long }]);
     assert.equal(out.length, 1);
     assert.ok(out[0].text.length <= 420);
     assert.ok(out[0].text.endsWith("…"));

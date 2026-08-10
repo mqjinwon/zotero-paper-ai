@@ -28,10 +28,7 @@ export {
   buildJudgeUser,
   JUDGE_SYSTEM,
 } from "./judge";
-export {
-  buildNeedleVariants,
-  lockJudgmentToPdf,
-} from "./pdfLock";
+export { buildNeedleVariants, lockJudgmentToPdf } from "./pdfLock";
 export type { LocateHit } from "./pdfLock";
 export {
   applyLockedEvidence,
@@ -40,20 +37,14 @@ export {
   htmlLockedLink,
 } from "./apply";
 export { groundAnswerHighQuality } from "./pipeline";
-export {
-  toSentenceRefs,
-  isPaperSentenceRefArray,
-} from "./sentences";
+export { toSentenceRefs, isPaperSentenceRefArray } from "./sentences";
 export { buildGroundingCorpus } from "./corpus";
 export {
   formatGroundingProgressStatus,
   formatGroundingResultStatus,
   formatGroundingErrorStatus,
 } from "./status";
-export {
-  fromLLMClient,
-  groundAnswerForUi,
-} from "./runForUi";
+export { fromLLMClient, groundAnswerForUi } from "./runForUi";
 export type {
   GroundAnswerForUiOpts,
   GroundAnswerForUiResult,

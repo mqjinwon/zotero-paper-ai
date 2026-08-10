@@ -41,17 +41,11 @@ export function buildNeedleVariants(sentence: string): string[] {
 
 function resolveAnswerPhrase(claim: Claim, paper: string): string {
   const fromText = pickLinkPhrase(claim.text, paper);
-  if (
-    fromText &&
-    claim.text.toLowerCase().includes(fromText.toLowerCase())
-  ) {
+  if (fromText && claim.text.toLowerCase().includes(fromText.toLowerCase())) {
     return fromText;
   }
   const fromEn = pickLinkPhrase(claim.textEn, paper);
-  if (
-    fromEn &&
-    claim.text.toLowerCase().includes(fromEn.toLowerCase())
-  ) {
+  if (fromEn && claim.text.toLowerCase().includes(fromEn.toLowerCase())) {
     return fromEn;
   }
   // Surface from claim.text even when tokens only match English paper
