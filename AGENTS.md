@@ -20,9 +20,9 @@ Compact facts for coding agents. Prose to user: Korean; code/comments/IDs: Engli
 2. **Region outline**: paint **inside PDF page `div`** (absolute, p2v via `convertToViewportPoint`). Shell SVG desyncs with left/right panels.
 3. **Connector lines**: shell SVG; anchors via page rects + `mozInnerScreenX` cross-iframe map. Scroll: all docs + PDF.js `eventBus` + interval.
 4. **Cite click**: `event.target` may be **Text node** → use `parentElement` then `closest`. Wire panel root click **and** mousedown.
-5. **Cite navigate (official first)**: `reader.navigate({ pageIndex, position: { pageIndex, rects } })` — same Location contract as sticky. Then flash rects. Fallback: quote locate → page-only. Links: post-hoc phrase anchors whose `data-preview` is a **real paper sentence** (`groundAnswerToPaper`), not RAG cite ids.
+5. **Cite navigate (official first)**: `reader.navigate({ pageIndex, position: { pageIndex, rects } })` — same Location contract as sticky. Prefer `data-rects` when present (`handleCiteClick`). Fallback: quote locate → page-only. Links: post-hoc phrase anchors whose `data-preview` is a **real paper sentence** (HQ grounding / legacy lexical), not RAG cite ids.
 6. **Markdown paint**: `setMarkdownHtml` = DOMParser + `importNode` (item-pane rejects naive `innerHTML` for tables).
-7. **Ground after answer**: extract claim spans → match paper sentences (BM25 + token overlap gate) → link only when score high; jump needle = paper sentence.
+7. **Ground after answer**: HQ pipeline (`src/rag/grounding/`) — claims → normalize → candidates → LLM judge (`support` only) → PDF locate fail-closed; jump needle = locked paper sentence. Legacy lexical fallback when LLM unavailable.
 
 ## RAG
 
@@ -31,7 +31,7 @@ Compact facts for coding agents. Prose to user: Korean; code/comments/IDs: Engli
 - Auto-highlight: `src/rag/autoHighlight/*` — 4 classes (claim/method/novelty/caveat), tags `paper-ai-auto`, Zotero Annotations.saveFromJSON.
 - Prefer PDF.js per-page extract when reader open (page map for cites). Fulltext alone → weaker `pageStart`.
 - Stuff short papers: full parent context for the model. Else BM25/hybrid passages for context.
-- Answers: free prose → **post-hoc paper-sentence grounding** (`src/rag/groundAnswer.ts`) + optional evidence tray.
+- Answers: free prose → **HQ evidence grounding** (`src/rag/grounding/`: atomic claims → KO→EN normalize → BM25 + optional dense RRF + evidence prior → LLM support judge → PDF locate fail-closed → phrase links + tray). Only `support` + successful locate become navigable links (`data-preview` = paper sentence; optional `data-rects`). Legacy lexical `groundAnswerToPaper` is offline/fallback only.
 - Figure: `figureContext` captions/discussions + `attachRagContext`.
 
 ## Prompts (`src/llm/prompts.ts`)

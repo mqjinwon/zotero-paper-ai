@@ -1,7 +1,7 @@
 # High-Performance Evidence Grounding Design
 
 **Date:** 2026-08-10  
-**Status:** Spec approved for planning (implementation only after plan + “구현 시작”)  
+**Status:** Implemented (2026-08-10) — see `src/rag/grounding/` and plan tasks 1–9  
 **Related:** `2026-08-03-paper-rag-design.md` (RAG reading context; this spec owns **answer→paper links**)  
 **Product:** Paper AI Colleague — post-hoc 근거 링크 quality over cost
 

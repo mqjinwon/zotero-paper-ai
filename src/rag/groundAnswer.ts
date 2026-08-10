@@ -1,12 +1,13 @@
 /**
- * Post-hoc answer → paper-sentence grounding.
+ * Legacy lexical post-hoc answer → paper-sentence grounding.
+ *
+ * Primary path is the high-quality pipeline under `src/rag/grounding/`
+ * (`groundAnswerHighQuality`: claims → KO→EN normalize → BM25/RRF candidates
+ * → LLM support judge → PDF locate fail-closed → HTML links).
+ * This module remains for offline/unit fallback and pure helpers
+ * (`extractClaimSpans`, `pickLinkPhrase`, `sentencesFromIndex`, …).
  *
  * Links are NOT matched to pre-built RAG cite ids.
- * After the model answers from paper context, we:
- *  1) extract claim spans from the answer
- *  2) find the best supporting *paper sentence*
- *  3) link only when score clears a gate
- *  4) navigate using that paper sentence as the locate needle
  */
 
 import { buildBm25, bm25Scores, tokenize } from "./bm25";
