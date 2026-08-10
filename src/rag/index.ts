@@ -32,6 +32,7 @@ import {
   sentencesFromChunks,
   sentencesFromIndex,
 } from "./groundAnswer";
+import { groundAnswerHighQuality } from "./grounding";
 import { retrieve, type RetrieveOptions } from "./retrieve";
 import { findLatestIndexForPaper, loadIndex, saveIndex } from "./store";
 import type {
@@ -51,6 +52,7 @@ export {
   evidenceFooter,
   withEvidenceAnswer,
   groundAnswerToPaper,
+  groundAnswerHighQuality,
   sentencesFromIndex,
   sentencesFromChunks,
   enrichEvidenceWithPages,
@@ -59,6 +61,12 @@ export {
   formatIndexDiagnosticsDetail,
 };
 export type { RagPrefs, RagQueryResult, PaperIndex, ExtractedDoc };
+export type {
+  Claim,
+  GroundingResult,
+  LockedEvidence,
+  PaperSentenceRef,
+} from "./grounding";
 
 const inflight = new Map<string, Promise<PaperIndex>>();
 
