@@ -578,7 +578,7 @@ export function linkifyBareCites(
 }
 
 /**
- * @deprecated Prefer groundAnswerToPaper (post-hoc paper sentences).
+ * @deprecated Prefer groundAnswerForUi / groundAnswerHighQuality. Lexical-only; no PDF lock.
  * Kept for callers that only have evidence chunks — builds a weak sentence list
  * from those chunks and grounds against them.
  */

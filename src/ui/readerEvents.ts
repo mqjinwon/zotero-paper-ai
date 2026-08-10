@@ -14,7 +14,7 @@ import { readRagPrefs } from "../rag/prefs";
 import { diag } from "../utils/diagnostics";
 import { getPref, setPref } from "../utils/prefs";
 import { beginAreaSelectCapture } from "./imageCapture";
-import { groundAnswerToPaper } from "../rag/groundAnswer";
+import { buildGroundingCorpus, groundAnswerForUi } from "../rag/grounding";
 import { attachRagContext } from "./paperTask";
 import {
   installFigureAnnotationButtons,
@@ -575,8 +575,23 @@ export async function runStickyTask(opts: {
       },
       reasoningEffort: cfg.reasoningEffort,
     });
-    if (answer && rag.paperSentences?.length) {
-      const g = groundAnswerToPaper(answer, rag.paperSentences);
+    // Post-hoc HQ grounding on final answer only (keep streaming text until done)
+    const sentsForGround = buildGroundingCorpus(
+      rag.paperSentences,
+      rag.evidence,
+    );
+    if (answer && sentsForGround.length) {
+      const g = await groundAnswerForUi({
+        answer,
+        paperSentences: sentsForGround,
+        evidence: rag.evidence,
+        client,
+        model: cfg.model,
+        ragPrefs: readRagPrefs(),
+        onStatus: (msg) => {
+          if (opts.statusEl) opts.statusEl.textContent = msg;
+        },
+      });
       answer = g.answer;
     }
     diag("sticky", "explain RAG", {

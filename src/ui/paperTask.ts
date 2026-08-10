@@ -10,10 +10,13 @@ import { isVisionMode, runTask } from "../llm/router";
 import type { ImagePayload, TaskMode } from "../llm/types";
 import { shouldUseRag } from "../rag/config";
 import {
-  groundAnswerToPaper,
   sentencesFromIndex,
   type PaperSentence,
 } from "../rag/groundAnswer";
+import {
+  buildGroundingCorpus,
+  groundAnswerForUi,
+} from "../rag/grounding";
 import { queryPaper } from "../rag/index";
 import { getOpenPaperRef, type OpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
@@ -48,8 +51,9 @@ export interface PaperTaskInput {
   /** When false, never call queryPaper (tests for translate path). */
   allowRag?: boolean;
   /**
-   * Pre-built evidence (e.g. figure captions + discussions + RAG).
-   * When set, skips attachRagContext and injects this as model context.
+   * Pre-built evidence (e.g. figure captions + discussions).
+   * When set, preferred as model context but attachRagContext still runs
+   * so paperSentences/evidence are available for post-hoc grounding.
    */
   prefetchedContext?: string;
 }
@@ -187,28 +191,27 @@ export async function runPaperTask(
 
   const qText = question || selection || defaultQueryForMode(mode);
 
+  // Always attach RAG for index/sentences when allowed — prefetched only
+  // replaces/merges the model contextBlock, not the grounding corpus.
+  const rag = await attachRagContext({
+    mode,
+    store: input.store,
+    query: qText,
+    selection: selection || undefined,
+    ragPrefs,
+    paper: input.paper,
+    extract: input.extract,
+    onStatus: input.onStatus,
+    fetchImpl: input.fetchImpl,
+    allowRag: input.allowRag,
+  });
+
   const prefetched = (input.prefetchedContext || "").trim();
-  const rag = prefetched
-    ? {
-        contextBlock: prefetched,
-        ragFooter: "",
-        evidence: [] as RetrievedEvidence[],
-        paperSentences: [] as PaperSentence[],
-        indexLabel: "",
-        usedRag: true,
-      }
-    : await attachRagContext({
-        mode,
-        store: input.store,
-        query: qText,
-        selection: selection || undefined,
-        ragPrefs,
-        paper: input.paper,
-        extract: input.extract,
-        onStatus: input.onStatus,
-        fetchImpl: input.fetchImpl,
-        allowRag: input.allowRag,
-      });
+  // Model: figure/caption prefetched first; keep RAG block when present.
+  // Grounding: always uses rag.paperSentences / rag.evidence below.
+  const llmContext = prefetched
+    ? prefetched + (rag.contextBlock ? `\n\n${rag.contextBlock}` : "")
+    : rag.contextBlock;
 
   input.onStatus?.("응답 생성 중…");
   const client = getOrCreateClient(input.store, cfg);
@@ -221,7 +224,7 @@ export async function runPaperTask(
       mode === "chat" || isVisionMode(mode)
         ? input.paper?.title || undefined
         : undefined,
-    context: rag.contextBlock || undefined,
+    context: llmContext || undefined,
     question:
       mode === "chat" || isVisionMode(mode) ? question || undefined : undefined,
     image: input.image,
@@ -231,52 +234,32 @@ export async function runPaperTask(
   });
 
   let ragFooter = "";
-  // Post-hoc: match answer claims → real paper sentences (not RAG cite ids)
-  const paperSents = rag.paperSentences || [];
-  if (answer && paperSents.length) {
-    input.onStatus?.("답변 ↔ 논문 문장 정렬 중…");
-    const grounded = groundAnswerToPaper(answer, paperSents);
-    answer = grounded.answer;
-    ragFooter = grounded.ragFooter;
-    input.onStatus?.(
-      grounded.matched
-        ? `근거 링크 ${grounded.matched}/${grounded.claims} 문장 매칭`
-        : `근거 링크 없음 (문장 매칭 임계값 미달 · 후보 ${grounded.claims})`,
-    );
-  } else if (answer && rag.evidence?.length) {
-    // Fallback: only retrieved evidence text as sentence corpus
-    const sents: PaperSentence[] = rag.evidence
-      .map((e) => {
-        const text = (
-          e.chunk?.anchorText ||
-          e.chunk?.text ||
-          e.contextText ||
-          ""
-        )
-          .replace(/\s+/g, " ")
-          .trim();
-        if (text.length < 28) return null;
-        return {
-          text: text.length > 420 ? `${text.slice(0, 419).trim()}…` : text,
-          pageStart: e.chunk?.pageStart,
-          pageEnd: e.chunk?.pageEnd,
-          section: e.chunk?.section,
-        } as PaperSentence;
-      })
-      .filter(Boolean) as PaperSentence[];
-    if (sents.length) {
-      const grounded = groundAnswerToPaper(answer, sents);
-      answer = grounded.answer;
-      ragFooter = grounded.ragFooter;
-    }
+  // Post-hoc HQ grounding via single UI entry (fail closed; status via onStatus)
+  const sentsForGround = buildGroundingCorpus(
+    rag.paperSentences,
+    rag.evidence,
+  );
+
+  if (answer && sentsForGround.length) {
+    const g = await groundAnswerForUi({
+      answer,
+      paperSentences: sentsForGround,
+      evidence: rag.evidence,
+      client,
+      model: cfg.model,
+      ragPrefs,
+      onStatus: input.onStatus,
+    });
+    answer = g.answer;
+    ragFooter = g.ragFooter;
   }
 
   return {
     answer,
     ragFooter,
     indexLabel: rag.indexLabel,
-    usedRag: rag.usedRag,
-    contextBlock: rag.contextBlock,
+    usedRag: rag.usedRag || !!prefetched,
+    contextBlock: llmContext,
     provider: cfg.provider,
     model: cfg.model,
   };

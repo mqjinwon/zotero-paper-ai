@@ -7,11 +7,8 @@ import { resolveFeatureConfig } from "../llm/featureConfig";
 import { runTask } from "../llm/router";
 import { getOrCreateClient } from "../llm/fastTranslate";
 import type { ImagePayload } from "../llm/types";
-import {
-  groundAnswerToPaper,
-  splitSentences,
-  type PaperSentence,
-} from "../rag/groundAnswer";
+import { splitSentences } from "../rag/groundAnswer";
+import { buildGroundingCorpus, groundAnswerForUi } from "../rag/grounding";
 import { ensureIndex } from "../rag/index";
 import { getOpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
@@ -289,16 +286,31 @@ export async function runFigureStickyTask(opts: {
       },
       reasoningEffort: cfg.reasoningEffort,
     });
+    // Post-hoc HQ grounding on final answer only (do not touch streaming deltas)
     if (answer) {
-      const sents: PaperSentence[] = [...(rag.paperSentences || [])];
-      // Also ground against figure caption / discussion text when present
-      if (bundle.directBlock?.trim()) {
-        for (const t of splitSentences(bundle.directBlock)) {
-          if (t.length >= 28) sents.push({ text: t, section: "Figure" });
-        }
-      }
+      // Caption/discussion snippets as extra sentences, then evidence corpus
+      const figureSents = (
+        bundle.directBlock?.trim()
+          ? splitSentences(bundle.directBlock)
+              .filter((t) => t.length >= 28)
+              .map((text) => ({ text, section: "Figure" as const }))
+          : []
+      ) as import("../rag/groundAnswer").PaperSentence[];
+      const base = buildGroundingCorpus(rag.paperSentences, rag.evidence);
+      const sents = [...base, ...figureSents];
       if (sents.length) {
-        answer = groundAnswerToPaper(answer, sents).answer;
+        // Keep sticky showing streamed answer until final grounded HTML is ready
+        // Status progress/result emitted by groundAnswerForUi via onStatus
+        const g = await groundAnswerForUi({
+          answer,
+          paperSentences: sents,
+          evidence: rag.evidence,
+          client,
+          model: cfg.model,
+          ragPrefs: readRagPrefs(),
+          onStatus: setStatus,
+        });
+        answer = g.answer;
       }
     }
     answer = answer || "(empty)";

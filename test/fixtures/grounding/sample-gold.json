@@ -1,0 +1,46 @@
+{
+  "paperSentences": [
+    {
+      "id": "s1",
+      "text": "We present residual force learning for quadruped locomotion.",
+      "pageStart": 1
+    },
+    {
+      "id": "s2",
+      "text": "Explicit mass-contact prediction is key to recovery after slip.",
+      "pageStart": 3
+    },
+    {
+      "id": "s3",
+      "text": "Latency remains under 1 ms on the onboard computer.",
+      "pageStart": 5
+    }
+  ],
+  "cases": [
+    {
+      "id": "en-residual",
+      "answer": "They use residual force learning.",
+      "goldSentenceId": "s1",
+      "language": "en"
+    },
+    {
+      "id": "ko-residual",
+      "answer": "잔차 힘 학습으로 보행을 개선한다.",
+      "goldSentenceId": "s1",
+      "language": "ko",
+      "mockTextEn": "Residual force learning improves locomotion."
+    },
+    {
+      "id": "en-mass-contact",
+      "answer": "Mass-contact prediction helps recovery after slip.",
+      "goldSentenceId": "s2",
+      "language": "en"
+    },
+    {
+      "id": "en-latency",
+      "answer": "Onboard latency stays under 1 ms.",
+      "goldSentenceId": "s3",
+      "language": "en"
+    }
+  ]
+}

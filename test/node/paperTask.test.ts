@@ -11,7 +11,11 @@ import { createNodeFileStore } from "../../src/auth/nodeFileStore.ts";
 import { shouldUseRag } from "../../src/rag/config.ts";
 import { buildExtractedDoc } from "../../src/rag/extract.ts";
 import { paperRefOf } from "../../src/rag/paperRef.ts";
-import { attachRagContext, formatUserVisible } from "../../src/ui/paperTask.ts";
+import { toSentenceRefs } from "../../src/rag/grounding";
+import {
+  attachRagContext,
+  formatUserVisible,
+} from "../../src/ui/paperTask.ts";
 
 const FIXTURE = `
 Abstract
@@ -154,5 +158,38 @@ describe("paperRef pure helper", () => {
     assert.equal(r.itemKey, "ABCD");
     assert.equal(r.itemID, 12);
     assert.equal(r.title, "T");
+  });
+});
+
+describe("toSentenceRefs", () => {
+  it("maps PaperSentence → PaperSentenceRef and marks fromEvidence by chunkId", () => {
+    const refs = toSentenceRefs(
+      [
+        {
+          text: "Residual force learning improves locomotion.",
+          pageStart: 2,
+          pageEnd: 2,
+          section: "Method",
+          chunkId: "c1",
+        },
+        {
+          text: "We evaluate on rough terrain.",
+          pageStart: 4,
+          chunkId: "c2",
+        },
+        { text: "No chunk id sentence for fallback id.", pageStart: 1 },
+      ],
+      new Set(["c1"]),
+    );
+    assert.equal(refs.length, 3);
+    assert.equal(refs[0].id, "c1:0");
+    assert.equal(refs[0].fromEvidence, true);
+    assert.equal(refs[0].chunkId, "c1");
+    assert.equal(refs[0].pageStart, 2);
+    assert.equal(refs[1].fromEvidence, false);
+    assert.equal(refs[1].id, "c2:1");
+    assert.equal(refs[2].id, "s2");
+    assert.equal(refs[2].fromEvidence, false);
+    assert.equal(refs[2].text, "No chunk id sentence for fallback id.");
   });
 });
