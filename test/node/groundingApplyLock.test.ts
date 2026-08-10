@@ -28,6 +28,7 @@ describe("applyLockedEvidence", () => {
           "We present residual force learning for quadruped locomotion.",
         pageStart: 1,
         locateOk: true,
+        source: "hq-locked",
       },
     ];
     const { answer, tray } = applyLockedEvidence(
@@ -48,6 +49,7 @@ describe("applyLockedEvidence", () => {
         pageStart: 1,
         rects: [[10, 20, 100, 40]],
         locateOk: true,
+        source: "hq-locked",
       },
     ];
     const { answer } = applyLockedEvidence(
@@ -90,6 +92,7 @@ describe("lockJudgmentToPdf", () => {
     assert.ok(lock);
     assert.equal(lock!.pageStart, 1);
     assert.equal(lock!.locateOk, true);
+    assert.equal(lock!.source, "hq-locked");
     assert.ok(lock!.rects?.length);
   });
 

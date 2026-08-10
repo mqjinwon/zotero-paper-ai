@@ -576,9 +576,6 @@ export async function runStickyTask(opts: {
     });
     // Post-hoc HQ grounding on final answer only (keep streaming text until done)
     if (answer && rag.paperSentences?.length) {
-      if (opts.statusEl) {
-        opts.statusEl.textContent = "근거 판정(claim·judge·PDF) 중…";
-      }
       const g = await groundAnswerForUi({
         answer,
         paperSentences: rag.paperSentences,
@@ -591,9 +588,6 @@ export async function runStickyTask(opts: {
         },
       });
       answer = g.answer;
-      if (opts.statusEl) {
-        opts.statusEl.textContent = `근거 링크 ${g.matched}/${g.claimCount}…`;
-      }
     }
     diag("sticky", "explain RAG", {
       usedRag: rag.usedRag,

@@ -13,7 +13,10 @@ import {
   sentencesFromIndex,
   type PaperSentence,
 } from "../rag/groundAnswer";
-import { groundAnswerForUi } from "../rag/grounding";
+import {
+  buildGroundingCorpus,
+  groundAnswerForUi,
+} from "../rag/grounding";
 import { queryPaper } from "../rag/index";
 import { getOpenPaperRef, type OpenPaperRef } from "../rag/paperRef";
 import { readRagPrefs } from "../rag/prefs";
@@ -231,35 +234,13 @@ export async function runPaperTask(
   });
 
   let ragFooter = "";
-  // Post-hoc HQ grounding via single UI entry (fail closed; no silent legacy)
-  const paperSents = rag.paperSentences || [];
-  let sentsForGround: PaperSentence[] = paperSents;
-  if (!sentsForGround.length && rag.evidence?.length) {
-    // Fallback corpus: only retrieved evidence text
-    sentsForGround = rag.evidence
-      .map((e) => {
-        const text = (
-          e.chunk?.anchorText ||
-          e.chunk?.text ||
-          e.contextText ||
-          ""
-        )
-          .replace(/\s+/g, " ")
-          .trim();
-        if (text.length < 28) return null;
-        return {
-          text: text.length > 420 ? `${text.slice(0, 419).trim()}…` : text,
-          pageStart: e.chunk?.pageStart,
-          pageEnd: e.chunk?.pageEnd,
-          section: e.chunk?.section,
-          chunkId: e.chunk?.id,
-        } as PaperSentence;
-      })
-      .filter(Boolean) as PaperSentence[];
-  }
+  // Post-hoc HQ grounding via single UI entry (fail closed; status via onStatus)
+  const sentsForGround = buildGroundingCorpus(
+    rag.paperSentences,
+    rag.evidence,
+  );
 
   if (answer && sentsForGround.length) {
-    input.onStatus?.("근거 판정(claim·judge·PDF) 중…");
     const g = await groundAnswerForUi({
       answer,
       paperSentences: sentsForGround,
@@ -271,13 +252,6 @@ export async function runPaperTask(
     });
     answer = g.answer;
     ragFooter = g.ragFooter;
-    input.onStatus?.(
-      `근거 링크 ${g.matched}/${g.claimCount}` +
-        (g.diagnostics.locateFailures
-          ? ` · locate실패 ${g.diagnostics.locateFailures}`
-          : "") +
-        (g.diagnostics.usedDense ? " · dense" : ""),
-    );
   }
 
   return {

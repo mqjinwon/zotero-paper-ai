@@ -1,14 +1,14 @@
 /**
  * Single UI entry for post-hoc evidence grounding.
  * paperTask / sticky / figure call this only — no duplicated locate/legacy blocks.
+ *
+ * Legacy lexical path lives only in pipeline.ts (llm null + allowLegacyFallback).
+ * This module never calls groundAnswerToPaper.
  */
 
 import { locateQuoteInOpenPdf } from "../autoHighlight/locate";
 import { resolveEmbedConfig } from "../config";
-import {
-  groundAnswerToPaper,
-  type PaperSentence,
-} from "../groundAnswer";
+import type { PaperSentence } from "../groundAnswer";
 import type { RagPrefs } from "../types";
 import { groundAnswerHighQuality } from "./pipeline";
 import type { LocateHit } from "./pdfLock";
@@ -16,6 +16,11 @@ import {
   isPaperSentenceRefArray,
   toSentenceRefs,
 } from "./sentences";
+import {
+  formatGroundingErrorStatus,
+  formatGroundingProgressStatus,
+  formatGroundingResultStatus,
+} from "./status";
 import type {
   GroundingDiagnostics,
   GroundingLlm,
@@ -62,8 +67,8 @@ export type GroundAnswerForUiOpts = {
   model: string;
   ragPrefs?: RagPrefs | null;
   /**
-   * When true, allow legacy lexical grounding if LLM missing or HQ throws.
-   * Default **false** (fail closed).
+   * Passed through to HQ pipeline only (llm null → legacyFallback there).
+   * Default **false**. Catch path never enables legacy.
    */
   allowLegacyFallback?: boolean;
   onStatus?: (msg: string) => void;
@@ -101,13 +106,20 @@ function resolveSentenceRefs(
 
 /**
  * Canonical UI grounding: evidence ids → sentence refs → HQ pipeline → status.
- * Never silently enables legacy (allowLegacyFallback defaults false).
+ *
+ * Always emits (when onStatus provided):
+ * 1. progress at start
+ * 2. result on success
+ * 3. error / 없음 on fail-closed throw
+ *
+ * Never silently enables legacy in catch (allowLegacyFallback only for pipeline llm-null).
  */
 export async function groundAnswerForUi(
   opts: GroundAnswerForUiOpts,
 ): Promise<GroundAnswerForUiResult> {
   const answer = String(opts.answer || "");
   const allowLegacy = opts.allowLegacyFallback === true;
+  const onStatus = opts.onStatus;
 
   if (!answer.trim() || !opts.paperSentences?.length) {
     return {
@@ -118,6 +130,8 @@ export async function groundAnswerForUi(
       ragFooter: "",
     };
   }
+
+  onStatus?.(formatGroundingProgressStatus());
 
   const evidenceIds = new Set(
     (opts.evidence || [])
@@ -150,53 +164,26 @@ export async function groundAnswerForUi(
       locate,
       allowLegacyFallback: allowLegacy,
     });
-    // Tray is already combined into answer by applyLockedEvidence
-    const ragFooter = "";
-    return {
+    const claimCount =
+      grounded.claims.length || grounded.diagnostics.claimCount || 0;
+    const result: GroundAnswerForUiResult = {
       answer: grounded.answer,
       matched: grounded.matched,
-      claimCount:
-        grounded.claims.length || grounded.diagnostics.claimCount || 0,
+      claimCount,
       diagnostics: grounded.diagnostics,
-      ragFooter,
+      ragFooter: "",
     };
-  } catch (e) {
-    if (allowLegacy) {
-      try {
-        const legacy = groundAnswerToPaper(
-          answer,
-          paperSentences.map((s) => ({
-            text: s.text,
-            pageStart: s.pageStart,
-            pageEnd: s.pageEnd,
-            section: s.section,
-            chunkId: s.chunkId,
-          })),
-        );
-        opts.onStatus?.(
-          legacy.matched
-            ? `근거 링크 ${legacy.matched}/${legacy.claims} (legacy)`
-            : "근거 링크 없음",
-        );
-        return {
-          answer: legacy.answer,
-          matched: legacy.matched,
-          claimCount: legacy.claims,
-          diagnostics: {
-            ...emptyDiagnostics(),
-            claimCount: legacy.claims,
-          },
-          ragFooter: legacy.ragFooter || "",
-        };
-      } catch {
-        /* fall through to fail-closed */
-      }
-    }
-    opts.onStatus?.(
-      e instanceof Error
-        ? `근거 판정 실패: ${e.message}`
-        : "근거 링크 없음",
+    onStatus?.(
+      formatGroundingResultStatus({
+        matched: result.matched,
+        claimCount: result.claimCount,
+        diagnostics: result.diagnostics,
+      }),
     );
+    return result;
+  } catch (e) {
+    // Fail closed: keep original answer, no links. Legacy only in pipeline.
+    onStatus?.(formatGroundingErrorStatus(e));
     return {
       answer,
       matched: 0,

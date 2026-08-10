@@ -95,6 +95,7 @@ describe("groundAnswerHighQuality", () => {
     assert.ok(r.diagnostics.claimCount >= 0);
     for (const link of r.links) {
       assert.equal(link.source, "legacy-lexical");
+      assert.equal(link.locateOk, false);
       assert.equal(link.rects, undefined);
     }
   });

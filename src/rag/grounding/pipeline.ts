@@ -95,7 +95,7 @@ function legacyFallback(
       chunkId: s.chunkId,
     })),
   );
-  // Lexical only — no PDF locate; mark source honestly (rects omitted).
+  // Lexical only — no PDF locate; honest locateOk false, no rects.
   const links: LockedEvidence[] = legacy.links.map((g, i) => ({
     claimId: `legacy${i + 1}`,
     answerPhrase: g.answerPhrase,
@@ -103,8 +103,8 @@ function legacyFallback(
     pageStart: g.pageStart,
     pageEnd: g.pageEnd,
     section: g.section,
-    locateOk: true as const,
-    source: "legacy-lexical" as const,
+    locateOk: false,
+    source: "legacy-lexical",
   }));
   return {
     answer: legacy.answer,

@@ -287,8 +287,8 @@ export async function runFigureStickyTask(opts: {
         }
       }
       if (sents.length) {
-        setStatus("근거 판정(claim·judge·PDF) 중…");
         // Keep sticky showing streamed answer until final grounded HTML is ready
+        // Status progress/result emitted by groundAnswerForUi via onStatus
         const g = await groundAnswerForUi({
           answer,
           paperSentences: sents,
@@ -299,7 +299,6 @@ export async function runFigureStickyTask(opts: {
           onStatus: setStatus,
         });
         answer = g.answer;
-        setStatus(`근거 링크 ${g.matched}/${g.claimCount}…`);
       }
     }
     answer = answer || "(empty)";

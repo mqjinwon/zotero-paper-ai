@@ -44,6 +44,12 @@ export {
   toSentenceRefs,
   isPaperSentenceRefArray,
 } from "./sentences";
+export { buildGroundingCorpus } from "./corpus";
+export {
+  formatGroundingProgressStatus,
+  formatGroundingResultStatus,
+  formatGroundingErrorStatus,
+} from "./status";
 export {
   fromLLMClient,
   groundAnswerForUi,
