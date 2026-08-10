@@ -10,6 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- Add notes here before the next release. The release workflow copies this
      section (or the matching version section) into the GitHub Release body. -->
 
+## [0.1.3] - 2026-08-10
+
+### Added
+
+- **High-quality evidence grounding pipeline** (`src/rag/grounding/*`): atomic claim extraction → KO→EN normalize → BM25 (+ optional dense RRF) with evidence prior → LLM support judge → PDF locate **fail-closed**.
+- Single UI entry `groundAnswerForUi` for panel chat/explain, sticky explain, and figure sticky.
+- Sticky **PDF-absolute positions** (`cardPdf`): stickies stay on the page under scroll/zoom instead of following the viewport.
+- Sticky page visibility: hide cards when their source PDF page is off-screen; re-show on scroll-back.
+- Sticky geometry helpers (`sticky/geometry`, `pageLookup`, `visibility`, `cardPdf`) with unit tests.
+- Grounding fixtures and expanded Node tests (pipeline, UI adapter, corpus/status, sticky drag).
+
+### Changed
+
+- Evidence links require judge label `support` **and** successful PDF locate; prefer no link over a wrong jump.
+- Legacy lexical grounding is opt-in only (`allowLegacyFallback`, default off) and tagged `source: legacy-lexical` without fake locate.
+- Judge phase runs with bounded concurrency (3); locate stays sequential for PDF.js safety.
+
+### Fixed
+
+- Chat/sticky history not restoring after Zotero rewrote note HTML (stripped `data-paper-ai` / class attrs) — tolerant decode + heal rewrite.
+- Collapsed sticky “flying away” on drag: CSS-origin delta drag, not stale `note.x` / GBR.
+- Mount no longer clamp-saves screen coordinates (preserves cross-device positions until the user moves a card).
+- Prefetched figure context still supplies paper sentences for grounding (index attach always runs when allowed).
+
 ## [0.1.2] - 2026-08-04
 
 ### Added
@@ -56,7 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Codex / Grok OAuth and API-key LLM routing.
 - Bootstrap plugin for Zotero 7–9 with item-pane UI.
 
-[Unreleased]: https://github.com/mqjinwon/zotero-paper-ai/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/mqjinwon/zotero-paper-ai/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/mqjinwon/zotero-paper-ai/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mqjinwon/zotero-paper-ai/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mqjinwon/zotero-paper-ai/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mqjinwon/zotero-paper-ai/releases/tag/v0.1.0
