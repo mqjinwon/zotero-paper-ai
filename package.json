@@ -43,7 +43,7 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "katex": "^0.18.9",
+    "katex": "^0.19.0",
     "marked": "^15.0.12",
     "zotero-plugin-toolkit": "^5.2.0"
   },
